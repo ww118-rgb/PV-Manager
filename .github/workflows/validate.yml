@@ -1,0 +1,36 @@
+name: Validate PV Energiemanager
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hacs/action@main
+        with:
+          category: integration
+  hassfest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: home-assistant/actions/hassfest@master
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - name: Compile integration
+        run: python -m compileall -q custom_components/pv_energiemanager
+      - name: JSON syntax
+        run: python -c 'import json,pathlib; [json.loads(p.read_text(encoding="utf-8")) for p in pathlib.Path("custom_components/pv_energiemanager").rglob("*.json")]'
+      - name: Run core algorithm tests
+        run: python -m unittest discover -s tests -v

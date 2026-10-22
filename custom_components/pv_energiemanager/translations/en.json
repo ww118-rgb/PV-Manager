@@ -1,0 +1,115 @@
+{
+  "title": "PV Energiemanager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Configure energy manager",
+        "data": {
+          "grid_entity": "Grid power sensor",
+          "battery_entity": "Battery power sensor (optional)",
+          "pv_entity": "PV generation (optional)",
+          "grid_export_positive": "Positive grid power means export",
+          "battery_charge_positive": "Positive battery power means charging",
+          "interval_s": "Control interval in seconds",
+          "reserve_w": "Safety reserve in watts",
+          "feedback_settle_s": "Wait before reusing confirmed feedback (s)"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "An energy manager already exists."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage energy manager",
+        "menu_options": {
+          "general": "General settings",
+          "add": "Add consumer",
+          "edit": "Edit consumer",
+          "remove": "Remove consumer"
+        }
+      },
+      "general": {
+        "title": "General settings",
+        "data": {
+          "grid_entity": "Grid power sensor",
+          "battery_entity": "Battery power sensor (optional)",
+          "pv_entity": "PV generation (optional)",
+          "grid_export_positive": "Positive grid power means export",
+          "battery_charge_positive": "Positive battery power means charging",
+          "interval_s": "Control interval in seconds",
+          "reserve_w": "Safety reserve in watts",
+          "feedback_settle_s": "Wait before reusing confirmed feedback (s)"
+        }
+      },
+      "add": {
+        "title": "Add consumer",
+        "data": {
+          "name": "Consumer name",
+          "priority": "Main priority (1 is highest)",
+          "subpriority": "Subpriority (1 first)",
+          "kind": "Control type",
+          "min_w": "Minimum power in watts",
+          "max_w": "Maximum power in watts",
+          "steps_w": "Stages in watts, comma-separated",
+          "demand_entity": "Demand ON/OFF (optional; empty = always)",
+          "actual_entity": "Actual power sensor (optional)",
+          "power_output": "Writable power setpoint (number / input_number)",
+          "switch_output": "Switch actuator (optional; required for on/off)",
+          "output_unit": "Unit of setpoint actuator",
+          "phases": "Number of phases for ampere output",
+          "voltage": "Voltage per phase for ampere output (V)",
+          "start_delay_s": "Start delay (s)",
+          "min_on_s": "Minimum on time (s)",
+          "min_off_s": "Minimum off time (s)"
+        }
+      },
+      "edit": {
+        "title": "Select consumer to edit",
+        "data": {
+          "device_id": "Select consumer"
+        }
+      },
+      "edit_form": {
+        "title": "Consumer settings",
+        "data": {
+          "name": "Consumer name",
+          "priority": "Main priority (1 is highest)",
+          "subpriority": "Subpriority (1 first)",
+          "kind": "Control type",
+          "min_w": "Minimum power in watts",
+          "max_w": "Maximum power in watts",
+          "steps_w": "Stages in watts, comma-separated",
+          "demand_entity": "Demand ON/OFF (optional; empty = always)",
+          "actual_entity": "Actual power sensor (optional)",
+          "power_output": "Writable power setpoint (number / input_number)",
+          "switch_output": "Switch actuator (optional; required for on/off)",
+          "output_unit": "Unit of setpoint actuator",
+          "phases": "Number of phases for ampere output",
+          "voltage": "Voltage per phase for ampere output (V)",
+          "start_delay_s": "Start delay (s)",
+          "min_on_s": "Minimum on time (s)",
+          "min_off_s": "Minimum off time (s)"
+        }
+      },
+      "remove": {
+        "title": "Remove consumer",
+        "data": {
+          "device_id": "Select consumer"
+        }
+      }
+    },
+    "error": {
+      "limits": "Invalid power limits",
+      "invalid_steps": "Invalid power stages",
+      "missing_power_output": "Writable number entity required",
+      "missing_switch": "Switch output required",
+      "duplicate_output": "This actuator is already assigned to another consumer."
+    },
+    "abort": {
+      "no_devices": "No consumers configured."
+    }
+  }
+}

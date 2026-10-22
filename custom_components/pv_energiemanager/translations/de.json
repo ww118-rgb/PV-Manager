@@ -1,0 +1,115 @@
+{
+  "title": "PV Energiemanager",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Energiemanager einrichten",
+        "data": {
+          "grid_entity": "Netzleistung",
+          "battery_entity": "Batterieleistung (optional)",
+          "pv_entity": "PV-Erzeugung (optional)",
+          "grid_export_positive": "Positive Netzleistung bedeutet Einspeisung",
+          "battery_charge_positive": "Positive Batterieleistung bedeutet Laden",
+          "interval_s": "Regelintervall in Sekunden",
+          "reserve_w": "Sicherheitsreserve in Watt",
+          "feedback_settle_s": "Wartezeit vor Istwertfreigabe (s)"
+        }
+      }
+    },
+    "abort": {
+      "single_instance_allowed": "Es existiert bereits ein Energiemanager."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Energiemanager verwalten",
+        "menu_options": {
+          "general": "Allgemeine Einstellungen",
+          "add": "Verbraucher hinzufügen",
+          "edit": "Verbraucher bearbeiten",
+          "remove": "Verbraucher entfernen"
+        }
+      },
+      "general": {
+        "title": "Allgemeine Einstellungen",
+        "data": {
+          "grid_entity": "Netzleistung",
+          "battery_entity": "Batterieleistung (optional)",
+          "pv_entity": "PV-Erzeugung (optional)",
+          "grid_export_positive": "Positive Netzleistung bedeutet Einspeisung",
+          "battery_charge_positive": "Positive Batterieleistung bedeutet Laden",
+          "interval_s": "Regelintervall in Sekunden",
+          "reserve_w": "Sicherheitsreserve in Watt",
+          "feedback_settle_s": "Wartezeit vor Istwertfreigabe (s)"
+        }
+      },
+      "add": {
+        "title": "Verbraucher hinzufügen",
+        "data": {
+          "name": "Verbrauchername",
+          "priority": "Hauptpriorität (1 ist höchste)",
+          "subpriority": "Unterpriorität (1 zuerst)",
+          "kind": "Regelungsart",
+          "min_w": "Mindestleistung in Watt",
+          "max_w": "Maximalleistung in Watt",
+          "steps_w": "Stufen in Watt, durch Kommas getrennt",
+          "demand_entity": "Anforderung EIN/AUS (optional; leer = immer)",
+          "actual_entity": "Istleistung (optional)",
+          "power_output": "Schreibbare Leistungsvorgabe (number / input_number)",
+          "switch_output": "Schaltausgang (optional, bei Ein/Aus Pflicht)",
+          "output_unit": "Einheit des Sollwert-Aktors",
+          "phases": "Phasenanzahl für Ampere-Ausgabe",
+          "voltage": "Spannung je Phase für Ampere-Ausgabe (V)",
+          "start_delay_s": "Einschaltverzögerung (s)",
+          "min_on_s": "Mindestlaufzeit (s)",
+          "min_off_s": "Mindestauszeit (s)"
+        }
+      },
+      "edit": {
+        "title": "Verbraucher bearbeiten",
+        "data": {
+          "device_id": "Verbraucher auswählen"
+        }
+      },
+      "edit_form": {
+        "title": "Verbraucher-Einstellungen",
+        "data": {
+          "name": "Verbrauchername",
+          "priority": "Hauptpriorität (1 ist höchste)",
+          "subpriority": "Unterpriorität (1 zuerst)",
+          "kind": "Regelungsart",
+          "min_w": "Mindestleistung in Watt",
+          "max_w": "Maximalleistung in Watt",
+          "steps_w": "Stufen in Watt, durch Kommas getrennt",
+          "demand_entity": "Anforderung EIN/AUS (optional; leer = immer)",
+          "actual_entity": "Istleistung (optional)",
+          "power_output": "Schreibbare Leistungsvorgabe (number / input_number)",
+          "switch_output": "Schaltausgang (optional, bei Ein/Aus Pflicht)",
+          "output_unit": "Einheit des Sollwert-Aktors",
+          "phases": "Phasenanzahl für Ampere-Ausgabe",
+          "voltage": "Spannung je Phase für Ampere-Ausgabe (V)",
+          "start_delay_s": "Einschaltverzögerung (s)",
+          "min_on_s": "Mindestlaufzeit (s)",
+          "min_off_s": "Mindestauszeit (s)"
+        }
+      },
+      "remove": {
+        "title": "Verbraucher entfernen",
+        "data": {
+          "device_id": "Verbraucher auswählen"
+        }
+      }
+    },
+    "error": {
+      "limits": "Mindest- und Maximalleistung ungültig",
+      "invalid_steps": "Leistungsstufen ungültig",
+      "missing_power_output": "Schreibbare number-Entität benötigt",
+      "missing_switch": "Schaltausgang benötigt",
+      "duplicate_output": "Dieser Schaltausgang/Leistungssteller wird bereits von einem anderen Verbraucher verwendet."
+    },
+    "abort": {
+      "no_devices": "Keine Verbraucher eingerichtet."
+    }
+  }
+}

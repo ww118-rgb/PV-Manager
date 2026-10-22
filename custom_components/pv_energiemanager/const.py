@@ -1,0 +1,12 @@
+"""Constants for PV Energiemanager."""
+DOMAIN = "pv_energiemanager"
+NAME = "PV Energiemanager"
+DEFAULT_INTERVAL = 15
+DEFAULT_RESERVE = 0
+DEFAULT_SETTLE = 15
+DEFAULT_STALE = 180
+DEFAULT_STEP_W = 100
+TYPE_CONTINUOUS = "continuous"
+TYPE_STEPPED = "stepped"
+TYPE_ONOFF = "onoff"
+TYPES = [TYPE_CONTINUOUS, TYPE_STEPPED, TYPE_ONOFF]

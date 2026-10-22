@@ -1,0 +1,116 @@
+# PV Energiemanager – Home Assistant (Prototyp v0.1.2)
+
+> **Installierbarer Prototyp (v0.1.2)**. Die Integration steuert nach Aktivierung echte Home-Assistant-Aktoren.
+> Bitte zunächst mit begrenzten Leistungswerten und unter Aufsicht in Betrieb nehmen.
+> GitHub-Repository: `ww118-rgb/PV-Manager`.
+
+## Installation über HACS (Custom Repository)
+
+1. Das öffentliche Repository `ww118-rgb/PV-Manager` muss die Integration unter `custom_components/pv_energiemanager/` enthalten.
+2. In Home Assistant HACS öffnen → Drei-Punkte-Menü → **Benutzerdefinierte Repositories**.
+3. `https://github.com/ww118-rgb/PV-Manager` eingeben und Kategorie **Integration** auswählen.
+4. Repository hinzufügen, `PV Energiemanager` in HACS öffnen und herunterladen.
+5. Home Assistant neu starten.
+6. Unter **Einstellungen → Geräte & Dienste → Integration hinzufügen** den PV Energiemanager auswählen.
+7. Zuerst Netz- und gegebenenfalls Batteriesensor konfigurieren, danach Verbraucher und Aktoren hinzufügen.
+8. Erst nach Prüfung der Aktorgrenzen den Regelschalter aktivieren.
+
+Eine öffentliche Aufnahme in den HACS-Standardkatalog ist **nicht** erforderlich.
+
+---
+
+# PV Energiemanager für Home Assistant – v0.1.0
+
+Direkt installierbare **Home-Assistant-Custom-Integration** mit echter zyklischer Sollwertberechnung und Aktor-Schreibbefehlen. Keine Demo, keine künstlichen Sensoren, kein Simulator und kein Testmodus in der Integration.
+
+**Status:** Erste Prototypversion. Der Python-Berechnungskern wurde lokal geprüft; ein vollständiger Lauf in einer realen Home-Assistant-Installation mit deinen Geräten ist **noch nicht** erfolgt. Bitte anfänglich mit einer kleinen Leistungsgrenze und beobachtetem Hausanschluss testen. Ausschließlich als Energiemanagement oberhalb der technischen Sicherheitsregelungen einsetzen.
+
+## Installation
+
+1. ZIP herunterladen und entpacken.
+2. Den Ordner `custom_components/pv_energiemanager` einschließlich aller Dateien nach `<Home Assistant config>/custom_components/pv_energiemanager` kopieren. Beispiel: `/config/custom_components/pv_energiemanager/`.
+3. Home Assistant **neu starten**.
+4. **Einstellungen → Geräte & Dienste → Integration hinzufügen** → „PV Energiemanager“.
+5. Den **Netzleistungssensor** zuordnen. Optional Batterie/PV auswählen, Vorzeichen und 15-Sekunden-Intervall einstellen.
+6. Im Integrationsmenü **Konfigurieren** → **Verbraucher hinzufügen**. Für jeden Verbraucher Leistungsgrenzen, Prioritäten, Anforderung und Schreibausgänge auswählen. Nach Änderungen wird die Integration neu geladen.
+7. Unter den Entitäten des Energiemanagers den Schalter **„PV Energiemanager Regelung“** aktivieren. **Erst danach werden echte Befehle geschrieben.** Nach jedem Home-Assistant-Neustart / Integrations-Reload ist die Regelung zunächst wieder pausiert.
+8. Die Entitäten „Verteilungsbudget“, „Zugewiesene Leistung“, pro Verbraucher „Sollleistung“, „Istleistung“ und „Letzter Fehler“ beobachten.
+
+## Benötigte Home-Assistant-Entitäten
+
+### Anlagenwerte
+
+- **Netzleistung**, Pflicht: `sensor`, `number` oder `input_number`; in W oder kW. Standard: **positiv = Netzeinspeisung**, negativ = Bezug. Vorzeichen umkehrbar.
+- **Batterieleistung**, optional: W oder kW. Standard: **positiv = Batterieladung**, negativ = Entladung. Vorzeichen umkehrbar. Fehlt eine Batterie, rechnet der Manager mit 0 W.
+- **PV-Erzeugung**, optional: nur zur Anzeige, nicht als zusätzlicher Summand der Bilanz.
+- Sicherheitsreserve und Regelintervall sind konfigurierbar (Standard **0 W**, **15 s**).
+
+### Je Verbraucher
+
+- **Name und Hauptpriorität 1–10**; innerhalb einer Gruppe **Unterpriorität 1–99** (1 zuerst).
+- **Anforderung**: optional `binary_sensor`, `switch`, `input_boolean` (**on** = Gerät fordert Leistung an). Ohne diese Entität wird der Verbraucher als dauerhaft anfordernd betrachtet.
+- **Istleistung**: optionaler Sensor in W/kW. Ohne gültigen Wert wird für die Leistungsbilanz der zuvor gesetzte Sollwert angenommen.
+- **Stufenlos**: Sollleistung (W) zwischen `min_w` und `max_w`, oder ausgeschaltet.
+- **Gestuft**: Liste wie `500,1000,1500,2000` W.
+- **Ein/Aus**: Leistung entweder 0 oder genau `max_w`.
+- **Leistungsausgang** für stufenlos/gestuft: *schreibbare* Home-Assistant-Entität aus `number.*` oder `input_number.*`.
+- **Schaltausgang**: `switch.*` oder `input_boolean.*`; bei Ein/Aus verpflichtend, bei regelbaren Geräten optional. Der Energiemanager schreibt zuerst den Leistungswert und schaltet dann bei Bedarf ein. Beim Abschalten nutzt er den Schaltausgang, falls vorhanden.
+- **Sollwerteinheit** für `number`-Aktoren: W, kW, oder A. Für A wird `W = A × Spannung × Phasenanzahl` angenähert; korrektes Phasenmodell / elektrische Begrenzungen im Gerät sind erforderlich.
+- **Einschaltverzögerung, Mindestlaufzeit, Mindestauszeit**: Sekunden je Verbraucher.
+
+**Wichtige Aktorbedingung:** Für stufenlos/gestuft ohne Schaltausgang muss die `number`-Entität tatsächlich den Wert **0** akzeptieren, um abzuschalten. Hat die Entität beispielsweise eine Mindestgrenze von 6 A, muss zusätzlich ein passender Schaltausgang zugeordnet werden.
+
+## Regelprinzip
+
+Alle 15 Sekunden (konfigurierbar) vollständige Messwertaufnahme, Neuberechnung, Prioritätsverteilung und Schreibbefehle. Zwischen zwei Zyklen keine neue Optimierung. Normale kurzfristige Netzbezüge sind möglich.
+
+**Leistungsbudget, in W:**
+
+```
+Budget = Netz + Batterie + Summe(angerechnete Verbraucherleistung) - Reserve
+Angerechnet = Ist, wenn frischer Sensorwert vorhanden, ansonsten letzter Sollwert
+```
+
+Dies ist ein **rechnerisches Leistungsbudget**. Fehlende Istsensoren erlauben keine exakte physikalische Verbrauchszuordnung. Das Netz / der Speicher korrigiert die Bilanz beim folgenden Zyklus. Bereits laufende Verbraucher werden bei jedem Zyklus neu berücksichtigt, damit ihre Leistung nicht „verschwindet“.
+
+1. Hauptprioritäten von 1 nach 10.
+2. Geräte ohne Anforderung zählen nicht zum Gruppenbedarf.
+3. Innerhalb einer Priorität werden zunächst die technisch möglichen Mindestleistungen in Reihenfolge der Unterpriorität zugelassen; dann werden aktive Geräte so gleichmäßig wie möglich bis zu ihren Maximalwerten erhöht.
+4. Leistungsstufen werden exakt eingehalten; für stufenlose Geräte erfolgt die interne Verteilung in 100-W-Schritten.
+5. Nachrangige Gruppen werden grundsätzlich erst bei gedecktem **konfiguriertem Maximalbedarf** höherer Gruppen versorgt. Ist ein höheres Gerät bereits seit dem letzten Schreibvorgang stabil unter seiner Sollleistung und sein Istsensor aktuell, darf die **nachweislich ungenutzte Differenz** an nachrangige Gruppen weitergegeben werden. Diese Zuteilung ist jederzeit widerrufbar.
+6. Fehlt der Istsensor, gilt rechnerisch der letzte Sollwert. Eine reale Netzeinspeisung kann dennoch bei der nächsten Budgetberechnung für weitere Leistung sorgen. Deshalb kann bei späterer Vollauslastung kurzfristig Netzbezug auftreten.
+7. Schreibbefehle nur bei Änderungen. Niedrigere Prioritäten werden vor neuen Erhöhungen reduziert, innerhalb des gleichen 15-s-Zyklus.
+
+**Achtung:** Ein fehlender gültiger Netz- oder Batteriesensor blockiert neue Befehle, schaltet angeschlossene Verbraucher aber nicht automatisch ab. Eine abgeschaltete EMS-Regelung lässt die letzten Aktoreinstellungen bestehen. Fallbacks, Notabschaltung und Maximalstromschutz müssen geräteseitig bzw. durch andere abgesicherte Mechanismen sichergestellt sein.
+
+## Protokolle
+
+Der Manager selbst kommuniziert über Home-Assistant-Entitäten. Modbus-, MQTT-, OCPP- oder Herstelleranbindungen werden durch die jeweilige vorhandene HA-Integration bereitgestellt. Die gewählten `number`-/`switch`-Entitäten müssen tatsächliche Schreibaktionen unterstützen. `input_number` und `input_boolean` sind reine Helfer: Werden sie ausgewählt, muss eine Automation oder eine andere Anbindung die Änderungen **an das echte Gerät weiterleiten**.
+
+Eine OCPP-Wallbox kann beispielsweise einen Stromgrenzwert in Ampere annehmen, während der Energiemanager intern mit Watt rechnet. Die Leistungsermittlung über feste Spannung/Phasenzahl ist nur eine Näherung; insbesondere Phasenwechsel müssen gerätespezifisch behandelt werden.
+
+## Einschränkungen der Version 0.1.2
+
+- Nicht in einem echten HA-Installationskontext mit deinen Geräten validiert. Fehlerberichte und Logs sind deshalb ausdrücklich erwünscht.
+- Kein eigener nativer Modbus-/MQTT-/OCPP-Treiber: **Home Assistant stellt die Adapter**.
+- Bereits ausgelöste Schaltvorgänge werden als Serviceaufrufe verarbeitet; **eine elektrische Bestätigung der tatsächlichen Umsetzung wird nicht immer garantiert**. Istsensoren liefern optional Rückmeldung.
+- Mindestlaufzeiten werden ab erfolgreichen Schreibbefehlen verfolgt, nicht über einen Neustart hinweg persistiert.
+- Ausgänge werden bei pausierter Regelung oder fehlenden Messwerten **nicht automatisch in den sicheren Zustand versetzt**.
+- Keine harte Begrenzung des Netzimports oder Anschlussstroms. Kurzzeitiger Netzbezug ist konzeptionell erlaubt; Gerätesicherheit muss unabhängig davon bestehen.
+- Kein gleichzeitiger Schreibzugriff durch weitere Automationen empfohlen. Mehrere Controller desselben Aktors würden gegeneinander arbeiten.
+
+## Fehlersuche
+
+Unter **Einstellungen → System → Protokolle** nach `custom_components.pv_energiemanager` suchen. Zusätzlich den Entitätswert **„Letzter Fehler“** und die Werte **Netzleistung**, **Batterieleistung**, **Verteilungsbudget** sowie den Sollwert des betreffenden Gerätes notieren.
+
+Für reproduzierbare Bugreports hilfreich: Home-Assistant-Version, Gerätetyp, anonymisierte Entitätsnamen, Prioritäten, Soll-/Istwerte und Zeitpunkt der Abweichung.
+
+
+## HACS/HA Kompatibilität und Qualität
+
+- Die lokale Integration ist in `custom_components/pv_energiemanager/` gekapselt. Die HACS-Konfiguration liegt im Repository-Root.
+- `strings.json` dient als englische Originalübersetzung; `translations/de.json` und `translations/en.json` ergänzen die UI.
+- Das lokale Icon liegt unter `brand/icon.png` (in Home Assistant seit 2026.3 unterstützt). Die Anzeige in HACS kann trotz funktionierendem Icon anders ausfallen.
+- GitHub Actions führen HACS-Validierung, Hassfest und Python-Kernprüfungen durch. Ein erfolgreiches Prüfergebnis ersetzt keinen Test der HA-Runtime mit angeschlossenen Aktoren.
+- **Keine Kompatibilität mit sämtlichen Home-Assistant-Core-Versionen zugesichert.** Die Unterstützung einzelner Core-Versionen wird anhand echter Installations- und Laufzeittests dokumentiert.
+- Der Quellcode ist unabhängig vom alten `power-manager` und verwendet dessen Steuerungslogik nicht.

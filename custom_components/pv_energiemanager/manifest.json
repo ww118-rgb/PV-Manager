@@ -1,0 +1,16 @@
+{
+  "domain": "pv_energiemanager",
+  "name": "PV Energiemanager",
+  "codeowners": [
+    "@ww118-rgb"
+  ],
+  "config_flow": true,
+  "dependencies": [],
+  "documentation": "https://github.com/ww118-rgb/PV-Manager",
+  "integration_type": "hub",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/ww118-rgb/PV-Manager/issues",
+  "requirements": [],
+  "single_config_entry": true,
+  "version": "0.1.2"
+}
