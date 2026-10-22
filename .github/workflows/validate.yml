@@ -16,6 +16,9 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
+          # Optional GitHub listing fields are not required for a custom HACS repo.
+          # Set description and topics in GitHub About when convenient.
+          ignore: description topics
   hassfest:
     runs-on: ubuntu-latest
     steps:

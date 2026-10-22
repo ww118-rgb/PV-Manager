@@ -19,3 +19,7 @@ Für manuelle Installation ausschließlich `custom_components/pv_energiemanager/
 - Unterschiedliche Home-Assistant-Core-Versionen müssen über reale Installationen geprüft werden.
 - Das lokale Branding wird auf HA 2026.3+ unterstützt; HACS kann im eigenen Katalog trotzdem einen Platzhalter anzeigen.
 - Ohne GitHub Release verwendet HACS den Stand des Standard-Branches; mit veröffentlichten Releases werden Versionen auswählbar.
+
+## GitHub-Actions und Metadaten
+
+Der HACS-Workflow ignoriert die Katalog-Pflichtfelder `description` und `topics`, damit die Custom Integration auch ohne HACS-Standardkatalog geprüft werden kann. Beide Metadaten sollten trotzdem unter **GitHub → Repository → About** eingetragen werden (siehe README).

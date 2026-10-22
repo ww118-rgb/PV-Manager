@@ -89,7 +89,7 @@ Der Manager selbst kommuniziert über Home-Assistant-Entitäten. Modbus-, MQTT-,
 
 Eine OCPP-Wallbox kann beispielsweise einen Stromgrenzwert in Ampere annehmen, während der Energiemanager intern mit Watt rechnet. Die Leistungsermittlung über feste Spannung/Phasenzahl ist nur eine Näherung; insbesondere Phasenwechsel müssen gerätespezifisch behandelt werden.
 
-## Einschränkungen der Version 0.1.2
+## Einschränkungen der Version 0.1.3
 
 - Nicht in einem echten HA-Installationskontext mit deinen Geräten validiert. Fehlerberichte und Logs sind deshalb ausdrücklich erwünscht.
 - Kein eigener nativer Modbus-/MQTT-/OCPP-Treiber: **Home Assistant stellt die Adapter**.
@@ -114,3 +114,14 @@ Für reproduzierbare Bugreports hilfreich: Home-Assistant-Version, Gerätetyp, a
 - GitHub Actions führen HACS-Validierung, Hassfest und Python-Kernprüfungen durch. Ein erfolgreiches Prüfergebnis ersetzt keinen Test der HA-Runtime mit angeschlossenen Aktoren.
 - **Keine Kompatibilität mit sämtlichen Home-Assistant-Core-Versionen zugesichert.** Die Unterstützung einzelner Core-Versionen wird anhand echter Installations- und Laufzeittests dokumentiert.
 - Der Quellcode ist unabhängig vom alten `power-manager` und verwendet dessen Steuerungslogik nicht.
+
+## GitHub-Metadaten und HACS-Validierung
+
+Der Workflow prüft HACS, Hassfest und Berechnungstests. Für **Custom Repositories** werden die nur für die offizielle HACS-Katalogaufnahme notwendigen Felder `description` und `topics` in der HACS-Aktion ausgenommen.
+
+Empfehlung: **GitHub → PV-Manager → About → Zahnrad**:
+
+- Beschreibung: `Zyklischer PV-Überschuss-Energiemanager für Home Assistant mit Prioritäten und flexiblen Aktor-Entitäten.`
+- Topics: `home-assistant`, `hacs`, `energy-management`, `pv-surplus`, `photovoltaics`
+
+Ein grüner HACS-Check belegt die Repository-Formalia, **nicht** die Funktion unter jeder HA-Core-Version.

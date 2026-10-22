@@ -159,9 +159,10 @@ class PVOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_general(self, user_input=None):
         if user_input is not None:
-            # Remove optional selectors explicitly if cleared.
-            options = {key: val for key, val in self.config_entry.options.items()
-                       if key not in ("battery_entity", "pv_entity")}
+            # Persist explicit None for cleared optional selectors. Otherwise
+            # an entity from entry.data would reappear when data/options merge.
+            options = dict(self.config_entry.options)
+            options.update({"battery_entity": None, "pv_entity": None})
             options.update(user_input)
             return self.async_create_entry(title="", data=options)
         merged = {**self.config_entry.data, **self.config_entry.options}
