@@ -6,6 +6,7 @@ from homeassistant.const import UnitOfPower
 from homeassistant.helpers.entity import DeviceInfo
 
 from .const import DOMAIN
+from .modbus_sensors import create_modbus_sensor_entities
 
 GLOBAL = {
     "grid": ("Netzleistung", UnitOfPower.WATT),
@@ -27,6 +28,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     for d in manager.devices:
         entities.extend(ConsumerSensor(manager, d, field) for field in
                         ("target", "actual", "accounted", "demand"))
+    entities.extend(create_modbus_sensor_entities(hass, entry))
     async_add_entities(entities)
 
 

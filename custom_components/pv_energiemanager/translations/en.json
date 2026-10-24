@@ -28,7 +28,14 @@
           "general": "General settings",
           "add": "Add consumer",
           "edit": "Edit consumer",
-          "remove": "Remove consumer"
+          "remove": "Remove consumer",
+          "modbus_connection": "Add Modbus TCP device",
+          "modbus_register": "Add Modbus read-only sensor",
+          "modbus_remove_register": "Remove Modbus sensor",
+          "modbus_remove_connection": "Remove Modbus device",
+          "modbus_edit_connection": "Edit Modbus device",
+          "modbus_edit_register": "Edit Modbus sensor",
+          "modbus_test_register": "Test-read Modbus register"
         }
       },
       "general": {
@@ -99,6 +106,89 @@
         "data": {
           "device_id": "Select consumer"
         }
+      },
+      "modbus_connection": {
+        "title": "Add Modbus TCP device",
+        "data": {
+          "name": "Device name",
+          "host": "Host / IP address",
+          "port": "TCP port",
+          "unit_id": "Modbus Unit ID"
+        }
+      },
+      "modbus_register": {
+        "title": "Add Modbus read-only sensor",
+        "data": {
+          "connection_id": "Modbus device",
+          "name": "Sensor name",
+          "address": "Register address (zero-based)",
+          "function_code": "Read function code (FC03/FC04)",
+          "data_type": "Register data type",
+          "byte_order": "Byte/word order (32-bit)",
+          "scale": "Scaling factor (value = raw × scale + offset)",
+          "offset": "Offset",
+          "unit": "Physical unit, e.g. W",
+          "poll_seconds": "Polling interval in seconds"
+        }
+      },
+      "modbus_remove_register": {
+        "title": "Remove Modbus sensor",
+        "data": {
+          "register_id": "Sensor to remove"
+        }
+      },
+      "modbus_remove_connection": {
+        "title": "Remove Modbus device",
+        "data": {
+          "connection_id": "Device to remove"
+        }
+      },
+      "modbus_edit_connection": {
+        "title": "Select Modbus device",
+        "data": {
+          "connection_id": "Device"
+        }
+      },
+      "modbus_edit_register": {
+        "title": "Select Modbus sensor",
+        "data": {
+          "register_id": "Sensor"
+        }
+      },
+      "modbus_edit_connection_form": {
+        "title": "Edit Modbus device",
+        "data": {
+          "name": "Device name",
+          "host": "Host / IP address",
+          "port": "TCP port",
+          "unit_id": "Modbus Unit ID"
+        }
+      },
+      "modbus_edit_register_form": {
+        "title": "Edit Modbus read sensor",
+        "data": {
+          "connection_id": "Modbus device",
+          "name": "Sensor name",
+          "address": "Register address (zero-based)",
+          "function_code": "Read function code (FC03/FC04)",
+          "data_type": "Register data type",
+          "byte_order": "Byte/word order (32-bit)",
+          "scale": "Scaling factor (value = raw × scale + offset)",
+          "offset": "Offset",
+          "unit": "Physical unit, e.g. W",
+          "poll_seconds": "Polling interval in seconds"
+        }
+      },
+      "modbus_test_register": {
+        "title": "Test-read Modbus register",
+        "description": "Read one register to check the connection, address and decoding. No values are written.",
+        "data": {
+          "register_id": "Configured register"
+        }
+      },
+      "modbus_test_result": {
+        "title": "Test-read result",
+        "description": "{result}"
       }
     },
     "error": {
@@ -106,10 +196,17 @@
       "invalid_steps": "Invalid power stages",
       "missing_power_output": "Writable number entity required",
       "missing_switch": "Switch output required",
-      "duplicate_output": "This actuator is already assigned to another consumer."
+      "duplicate_output": "This actuator is already assigned to another consumer.",
+      "invalid_endpoint": "Device name or host is missing",
+      "duplicate_endpoint": "This host, port and unit ID are already configured",
+      "invalid_register": "Invalid name or register address",
+      "invalid_scale": "Scaling factor must not be zero",
+      "connection_has_registers": "Remove the device sensors first"
     },
     "abort": {
-      "no_devices": "No consumers configured."
+      "no_devices": "No consumers configured.",
+      "no_modbus_connections": "No Modbus devices configured",
+      "no_modbus_registers": "No Modbus sensors configured"
     }
   }
 }

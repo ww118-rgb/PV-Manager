@@ -1,8 +1,18 @@
+## v0.2.0 – universeller Modbus-TCP-Leseadapter
+
+- UI-Konfiguration von mehreren Modbus-TCP-Geräten und Lesedatenpunkten.
+- Freie Host-/Port-/Unit-ID-/Registeradressen, FC03/04 und Datenformate.
+- Neue native Sensoren mit stabilen IDs, Rohwertdiagnose und Verbindungsstatus.
+- Ein expliziter Testlesedialog ohne Schreibbefehle.
+- Keine Änderung am Prioritätenalgorithmus oder an bestehenden Verbrauchern.
+- HA-Core-Mindeststand 2026.9 wegen `async_get_unit`.
+- Modbus-Schreiben und MQTT sind noch nicht Bestandteil dieser Version.
+
 ## v0.1.3
 
-- HACS Custom Repository: ignore official catalog requirements for GitHub description/topics in CI; listing metadata is still recommended.
-- Clearing optional battery/PV sensors now persists across configuration updates.
-- No change to load-distribution algorithm or output protocol.
+- HACS-Custom-Repository-Validierung: Katalogpflichtfelder `description`/`topics` werden für die Custom-Repository-Prüfung ausgenommen; eine verständliche Repository-Beschreibung und Themen bleiben empfohlen.
+- Optionale PV-/Batteriesensoren lassen sich in den globalen Optionen jetzt zuverlässig entfernen.
+- Keine Änderung am Leistungsverteiler oder an den Aktorschnittstellen.
 
 # Änderungsprotokoll
 

@@ -1,3 +1,16 @@
+# Installieren / Aktualisieren auf v0.2.0
+
+Diese Ausbaustufe benötigt **Home Assistant Core 2026.9 oder neuer**.
+Über HACS das bestehende Repository `ww118-rgb/PV-Manager` aktualisieren und
+Home Assistant neu starten. Die EMS-Konfiguration bleibt erhalten.
+Anschließend im Optionsmenü **Modbus-TCP-Gerät hinzufügen**, **Modbus-Lesesensor
+hinzufügen** und **Modbus-Register testweise lesen** verwenden.
+
+Der Regelschalter bleibt nach Neustart deaktiviert. Die Modbus-Erweiterung
+schreibt keine Gerätewerte. Hinweise: [DEVELOPMENT_MODBUS.md](DEVELOPMENT_MODBUS.md).
+
+---
+
 # Installation über HACS
 
 1. In HACS auf **Benutzerdefinierte Repositories** gehen.
@@ -22,4 +35,4 @@ Für manuelle Installation ausschließlich `custom_components/pv_energiemanager/
 
 ## GitHub-Actions und Metadaten
 
-Der HACS-Workflow ignoriert die Katalog-Pflichtfelder `description` und `topics`, damit die Custom Integration auch ohne HACS-Standardkatalog geprüft werden kann. Beide Metadaten sollten trotzdem unter **GitHub → Repository → About** eingetragen werden (siehe README).
+Der HACS-Workflow ignoriert die Katalog-Pflichtfelder `description` und `topics`, damit sich die Custom-Integration auch vor einer Aufnahme in den öffentlichen HACS-Katalog prüfen lässt. Empfehlenswert ist dennoch, beide unter GitHub → Repository → **About** nachzutragen. Siehe README.

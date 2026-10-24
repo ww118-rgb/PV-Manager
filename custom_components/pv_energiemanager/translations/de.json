@@ -28,7 +28,14 @@
           "general": "Allgemeine Einstellungen",
           "add": "Verbraucher hinzufügen",
           "edit": "Verbraucher bearbeiten",
-          "remove": "Verbraucher entfernen"
+          "remove": "Verbraucher entfernen",
+          "modbus_connection": "Modbus-TCP-Gerät hinzufügen",
+          "modbus_register": "Modbus-Lesesensor hinzufügen",
+          "modbus_remove_register": "Modbus-Sensor entfernen",
+          "modbus_remove_connection": "Modbus-Gerät entfernen",
+          "modbus_edit_connection": "Modbus-Gerät bearbeiten",
+          "modbus_edit_register": "Modbus-Sensor bearbeiten",
+          "modbus_test_register": "Modbus-Register testweise lesen"
         }
       },
       "general": {
@@ -99,6 +106,89 @@
         "data": {
           "device_id": "Verbraucher auswählen"
         }
+      },
+      "modbus_connection": {
+        "title": "Modbus-TCP-Gerät hinzufügen",
+        "data": {
+          "name": "Gerätename",
+          "host": "Host / IP-Adresse",
+          "port": "TCP-Port",
+          "unit_id": "Modbus Unit-ID"
+        }
+      },
+      "modbus_register": {
+        "title": "Modbus-Lesesensor hinzufügen",
+        "data": {
+          "connection_id": "Modbus-Gerät",
+          "name": "Sensorname",
+          "address": "Registeradresse (0-basiert)",
+          "function_code": "Lesefunktion (FC03/FC04)",
+          "data_type": "Registerdatentyp",
+          "byte_order": "Byte-/Wortreihenfolge (32 Bit)",
+          "scale": "Skalierung (Wert = Rohwert × Faktor + Offset)",
+          "offset": "Offset",
+          "unit": "Physikalische Einheit, z. B. W",
+          "poll_seconds": "Abfrageintervall in Sekunden"
+        }
+      },
+      "modbus_remove_register": {
+        "title": "Modbus-Sensor entfernen",
+        "data": {
+          "register_id": "Zu entfernender Sensor"
+        }
+      },
+      "modbus_remove_connection": {
+        "title": "Modbus-Gerät entfernen",
+        "data": {
+          "connection_id": "Zu entfernendes Gerät"
+        }
+      },
+      "modbus_edit_connection": {
+        "title": "Modbus-Gerät auswählen",
+        "data": {
+          "connection_id": "Gerät"
+        }
+      },
+      "modbus_edit_register": {
+        "title": "Modbus-Sensor auswählen",
+        "data": {
+          "register_id": "Sensor"
+        }
+      },
+      "modbus_edit_connection_form": {
+        "title": "Modbus-Gerät bearbeiten",
+        "data": {
+          "name": "Gerätename",
+          "host": "Host / IP-Adresse",
+          "port": "TCP-Port",
+          "unit_id": "Modbus Unit-ID"
+        }
+      },
+      "modbus_edit_register_form": {
+        "title": "Modbus-Lesesensor bearbeiten",
+        "data": {
+          "connection_id": "Modbus-Gerät",
+          "name": "Sensorname",
+          "address": "Registeradresse (0-basiert)",
+          "function_code": "Lesefunktion (FC03/FC04)",
+          "data_type": "Registerdatentyp",
+          "byte_order": "Byte-/Wortreihenfolge (32 Bit)",
+          "scale": "Skalierung (Wert = Rohwert × Faktor + Offset)",
+          "offset": "Offset",
+          "unit": "Physikalische Einheit, z. B. W",
+          "poll_seconds": "Abfrageintervall in Sekunden"
+        }
+      },
+      "modbus_test_register": {
+        "title": "Modbus-Register testweise lesen",
+        "description": "Liest einmalig ein Register, um Verbindung, Adresse und Dekodierung zu überprüfen. Es wird nichts geschrieben.",
+        "data": {
+          "register_id": "Konfiguriertes Register"
+        }
+      },
+      "modbus_test_result": {
+        "title": "Ergebnis des Lesetests",
+        "description": "{result}"
       }
     },
     "error": {
@@ -106,10 +196,17 @@
       "invalid_steps": "Leistungsstufen ungültig",
       "missing_power_output": "Schreibbare number-Entität benötigt",
       "missing_switch": "Schaltausgang benötigt",
-      "duplicate_output": "Dieser Schaltausgang/Leistungssteller wird bereits von einem anderen Verbraucher verwendet."
+      "duplicate_output": "Dieser Schaltausgang/Leistungssteller wird bereits von einem anderen Verbraucher verwendet.",
+      "invalid_endpoint": "Gerätename oder Host fehlen",
+      "duplicate_endpoint": "Host, Port und Unit-ID sind bereits konfiguriert",
+      "invalid_register": "Ungültiger Name oder Registeradresse",
+      "invalid_scale": "Skalierungsfaktor darf nicht null sein",
+      "connection_has_registers": "Zuerst die Sensoren dieses Geräts entfernen"
     },
     "abort": {
-      "no_devices": "Keine Verbraucher eingerichtet."
+      "no_devices": "Keine Verbraucher eingerichtet.",
+      "no_modbus_connections": "Keine Modbus-Geräte eingerichtet",
+      "no_modbus_registers": "Keine Modbus-Sensoren eingerichtet"
     }
   }
 }

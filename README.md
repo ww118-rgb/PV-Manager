@@ -1,4 +1,27 @@
-# PV Energiemanager – Home Assistant (Prototyp v0.1.2)
+# PV-Manager für Home Assistant – v0.2.0 (Modbus TCP lesen)
+
+**Aktueller Stand:** Die bestehende PV-Überschussregelung bleibt erhalten.
+Neu: Modbus-TCP-Verbindungen und frei definierbare **Lesesensoren** werden
+über die Home-Assistant-Konfigurationsdialoge eingerichtet – ohne YAML,
+Helfer oder eigene Skripte. Der Modbus-Adapter benutzt die geteilte
+Verbindungsinfrastruktur aus Home Assistant Core 2026.9+.
+
+**Modbus-Schreibaktoren sind in dieser Version noch nicht enthalten.** Die
+Berechnung kann weiterhin vorhandene beschreibbare HA-`number`- und
+`switch`-Entitäten ansprechen; deren Verbindung zum Gerät muss derzeit über
+andere Integrationen erfolgen. MQTT/OCPP-Adapter folgen später.
+
+**[Schritt-für-Schritt Modbus-Anleitung](DEVELOPMENT_MODBUS.md)** – mit
+Registertypen, negativer Skalierung, Lesetest und Fehlerdiagnose.
+
+Bei einem Update über HACS: Home Assistant neu starten, unter
+**Einstellungen → Geräte & Dienste → PV Energiemanager → Konfigurieren** die
+Modbus-Geräte und Lesesensoren hinzufügen. Vorhandene EMS-Verbraucher und
+Optionen bleiben erhalten. Die echte Regelung startet deaktiviert.
+
+---
+
+# Frühere Prototyp-Dokumentation (v0.1.x)
 
 > **Installierbarer Prototyp (v0.1.2)**. Die Integration steuert nach Aktivierung echte Home-Assistant-Aktoren.
 > Bitte zunächst mit begrenzten Leistungswerten und unter Aufsicht in Betrieb nehmen.
@@ -89,7 +112,7 @@ Der Manager selbst kommuniziert über Home-Assistant-Entitäten. Modbus-, MQTT-,
 
 Eine OCPP-Wallbox kann beispielsweise einen Stromgrenzwert in Ampere annehmen, während der Energiemanager intern mit Watt rechnet. Die Leistungsermittlung über feste Spannung/Phasenzahl ist nur eine Näherung; insbesondere Phasenwechsel müssen gerätespezifisch behandelt werden.
 
-## Einschränkungen der Version 0.1.3
+## Einschränkungen der Version 0.1.2
 
 - Nicht in einem echten HA-Installationskontext mit deinen Geräten validiert. Fehlerberichte und Logs sind deshalb ausdrücklich erwünscht.
 - Kein eigener nativer Modbus-/MQTT-/OCPP-Treiber: **Home Assistant stellt die Adapter**.
@@ -114,14 +137,3 @@ Für reproduzierbare Bugreports hilfreich: Home-Assistant-Version, Gerätetyp, a
 - GitHub Actions führen HACS-Validierung, Hassfest und Python-Kernprüfungen durch. Ein erfolgreiches Prüfergebnis ersetzt keinen Test der HA-Runtime mit angeschlossenen Aktoren.
 - **Keine Kompatibilität mit sämtlichen Home-Assistant-Core-Versionen zugesichert.** Die Unterstützung einzelner Core-Versionen wird anhand echter Installations- und Laufzeittests dokumentiert.
 - Der Quellcode ist unabhängig vom alten `power-manager` und verwendet dessen Steuerungslogik nicht.
-
-## GitHub-Metadaten und HACS-Validierung
-
-Der Workflow prüft HACS, Hassfest und Berechnungstests. Für **Custom Repositories** werden die nur für die offizielle HACS-Katalogaufnahme notwendigen Felder `description` und `topics` in der HACS-Aktion ausgenommen.
-
-Empfehlung: **GitHub → PV-Manager → About → Zahnrad**:
-
-- Beschreibung: `Zyklischer PV-Überschuss-Energiemanager für Home Assistant mit Prioritäten und flexiblen Aktor-Entitäten.`
-- Topics: `home-assistant`, `hacs`, `energy-management`, `pv-surplus`, `photovoltaics`
-
-Ein grüner HACS-Check belegt die Repository-Formalia, **nicht** die Funktion unter jeder HA-Core-Version.

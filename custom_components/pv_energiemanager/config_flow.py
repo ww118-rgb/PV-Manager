@@ -8,6 +8,9 @@ from homeassistant import config_entries
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
+from .modbus_codec import TYPE_WIDTH, WORD_ORDER, decode_registers
+from .modbus_validation import validate_connection, validate_read_point
+
 from .const import (
     DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE,
     DOMAIN, TYPE_CONTINUOUS, TYPE_ONOFF, TYPE_STEPPED, TYPES,
@@ -120,6 +123,45 @@ def _validate_device(d):
     return result, None
 
 
+# Modbus configuration is stored in options; existing consumer and system
+# settings retain their IDs and schema.
+def _modbus_connection_schema(values=None):
+    values = values or {}
+    return vol.Schema({
+        vol.Required("name", default=values.get("name", "")): selector.TextSelector(),
+        vol.Required("host", default=values.get("host", "")): selector.TextSelector(),
+        vol.Required("port", default=values.get("port", 502)): _num(1, 65535),
+        vol.Required("unit_id", default=values.get("unit_id", 1)): _num(0, 255),
+    })
+
+
+def _modbus_register_schema(connections: list[dict], values=None):
+    values = values or {}
+    return vol.Schema({
+        vol.Required("connection_id", default=values.get("connection_id", connections[0]["id"])): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=[
+                selector.SelectOptionDict(value=c["id"], label=c["name"])
+                for c in connections
+            ])),
+        vol.Required("name", default=values.get("name", "")): selector.TextSelector(),
+        vol.Required("address", default=values.get("address", 0)): _num(0, 65535),
+        vol.Required("function_code", default=str(values.get("function_code", 3))): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=["3", "4"])),
+        vol.Required("data_type", default=values.get("data_type", "int16")): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=list(TYPE_WIDTH))),
+        vol.Required("byte_order", default=values.get("byte_order", "ABCD")): selector.SelectSelector(
+            selector.SelectSelectorConfig(options=list(WORD_ORDER))),
+        vol.Required("scale", default=values.get("scale", 1.0)): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=-1000000, max=1000000,
+                                          step="any", mode="box")),
+        vol.Required("offset", default=values.get("offset", 0.0)): selector.NumberSelector(
+            selector.NumberSelectorConfig(min=-1000000, max=1000000,
+                                          step="any", mode="box")),
+        vol.Optional("unit", default=values.get("unit", "W")): selector.TextSelector(),
+        vol.Required("poll_seconds", default=values.get("poll_seconds", 15)): _num(5, 3600),
+    })
+
+
 class PVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Create a single local EMS instance."""
     VERSION = 1
@@ -154,12 +196,15 @@ class PVOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["general", "add", "edit", "remove"],
+            menu_options=["general", "add", "edit", "remove",
+                          "modbus_connection", "modbus_edit_connection",
+                          "modbus_register", "modbus_edit_register",
+                          "modbus_test_register", "modbus_remove_register", "modbus_remove_connection"],
         )
 
     async def async_step_general(self, user_input=None):
         if user_input is not None:
-            # Persist explicit None for cleared optional selectors. Otherwise
+            # Persist explicit None for cleared optional selectors.  Otherwise
             # an entity from entry.data would reappear when data/options merge.
             options = dict(self.config_entry.options)
             options.update({"battery_entity": None, "pv_entity": None})
@@ -246,3 +291,255 @@ class PVOptionsFlow(config_entries.OptionsFlow):
                 ])
             )
         }))
+
+    def _connections(self):
+        return list(self.config_entry.options.get("modbus_connections", []))
+
+    def _registers(self):
+        return list(self.config_entry.options.get("modbus_registers", []))
+
+    async def async_step_modbus_connection(self, user_input=None):
+        """Register a Modbus-TCP endpoint, no network I/O until a register is read."""
+        errors = {}
+        if user_input is not None:
+            conn, error = validate_connection(user_input)
+            existing = self._connections()
+            if error:
+                errors["base"] = error
+            elif any((c["host"].lower(), c["port"], c["unit_id"]) ==
+                     (conn["host"].lower(), conn["port"], conn["unit_id"]) for c in existing):
+                errors["base"] = "duplicate_endpoint"
+            else:
+                conn["id"] = uuid4().hex[:12]
+                options = dict(self.config_entry.options)
+                options["modbus_connections"] = [*existing, conn]
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="modbus_connection",
+            data_schema=_modbus_connection_schema(),
+            errors=errors,
+        )
+
+    async def async_step_modbus_register(self, user_input=None):
+        """Create a read-only native HA sensor from one Modbus register range."""
+        connections = self._connections()
+        if not connections:
+            return self.async_abort(reason="no_modbus_connections")
+        errors = {}
+        if user_input is not None:
+            reg, error = validate_read_point(
+                user_input, {c["id"] for c in connections}
+            )
+            if error:
+                errors["base"] = error
+            else:
+                reg["id"] = uuid4().hex[:12]
+                options = dict(self.config_entry.options)
+                options["modbus_registers"] = [*self._registers(), reg]
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="modbus_register",
+            data_schema=_modbus_register_schema(connections),
+            errors=errors,
+        )
+
+    async def async_step_modbus_edit_connection(self, user_input=None):
+        connections = self._connections()
+        if not connections:
+            return self.async_abort(reason="no_modbus_connections")
+        if user_input:
+            self._chosen_modbus_connection = user_input["connection_id"]
+            return await self.async_step_modbus_edit_connection_form()
+        return self.async_show_form(
+            step_id="modbus_edit_connection",
+            data_schema=vol.Schema({
+                vol.Required("connection_id"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=[
+                        selector.SelectOptionDict(value=c["id"], label=c["name"])
+                        for c in connections
+                    ])),
+            }),
+        )
+
+    async def async_step_modbus_edit_connection_form(self, user_input=None):
+        connections = self._connections()
+        old = next((c for c in connections if c["id"] == self._chosen_modbus_connection), None)
+        if old is None:
+            return self.async_abort(reason="no_modbus_connections")
+        errors = {}
+        if user_input:
+            new, error = validate_connection(user_input)
+            if error:
+                errors["base"] = error
+            elif any(c["id"] != old["id"] and
+                     (c["host"].lower(), c["port"], c["unit_id"]) ==
+                     (new["host"].lower(), new["port"], new["unit_id"]) for c in connections):
+                errors["base"] = "duplicate_endpoint"
+            else:
+                new["id"] = old["id"]
+                options = dict(self.config_entry.options)
+                options["modbus_connections"] = [
+                    new if c["id"] == old["id"] else c for c in connections
+                ]
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="modbus_edit_connection_form",
+            data_schema=_modbus_connection_schema(old), errors=errors,
+        )
+
+    async def async_step_modbus_edit_register(self, user_input=None):
+        registers = self._registers()
+        if not registers:
+            return self.async_abort(reason="no_modbus_registers")
+        if user_input:
+            self._chosen_modbus_register = user_input["register_id"]
+            return await self.async_step_modbus_edit_register_form()
+        return self.async_show_form(
+            step_id="modbus_edit_register",
+            data_schema=vol.Schema({
+                vol.Required("register_id"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=[
+                        selector.SelectOptionDict(value=r["id"], label=r["name"])
+                        for r in registers
+                    ])),
+            }),
+        )
+
+    async def async_step_modbus_edit_register_form(self, user_input=None):
+        registers = self._registers()
+        old = next((r for r in registers if r["id"] == self._chosen_modbus_register), None)
+        if old is None:
+            return self.async_abort(reason="no_modbus_registers")
+        errors = {}
+        if user_input:
+            new, error = validate_read_point(
+                user_input, {c["id"] for c in self._connections()}
+            )
+            if error:
+                errors["base"] = error
+            else:
+                new["id"] = old["id"]
+                options = dict(self.config_entry.options)
+                options["modbus_registers"] = [
+                    new if r["id"] == old["id"] else r for r in registers
+                ]
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="modbus_edit_register_form",
+            data_schema=_modbus_register_schema(self._connections(), old), errors=errors,
+        )
+
+    async def async_step_modbus_test_register(self, user_input=None):
+        """Run an explicitly requested register read without changing options."""
+        regs = self._registers()
+        if not regs:
+            return self.async_abort(reason="no_modbus_registers")
+        if user_input is not None:
+            from homeassistant.components.modbus import async_get_temporary_unit
+            from modbus_connection import ModbusTcpParams
+            import asyncio
+
+            reg = next((r for r in regs if r["id"] == user_input["register_id"]), None)
+            conn = next((c for c in self._connections()
+                         if reg and c["id"] == reg["connection_id"]), None)
+            if not reg or not conn:
+                return self.async_abort(reason="no_modbus_connections")
+            try:
+                async with asyncio.timeout(10):
+                    async with async_get_temporary_unit(
+                        self.hass,
+                        ModbusTcpParams(host=conn["host"], port=int(conn["port"])),
+                        int(conn["unit_id"]),
+                    ) as unit:
+                        if int(reg["function_code"]) == 3:
+                            raw = await unit.read_holding_registers(
+                                int(reg["address"]), TYPE_WIDTH[reg["data_type"]]
+                            )
+                        else:
+                            raw = await unit.read_input_registers(
+                                int(reg["address"]), TYPE_WIDTH[reg["data_type"]]
+                            )
+                    value = decode_registers(
+                        list(raw), reg["data_type"], reg["byte_order"],
+                        reg["scale"], reg["offset"],
+                    )
+                self._test_result = (
+                    f"{reg['name']}: {value:g} {reg.get('unit', '')}; "
+                    f"Rohregister: {list(raw)}"
+                )
+            except Exception as exc:
+                self._test_result = (
+                    f"Testlesen fehlgeschlagen: {type(exc).__name__}: {exc}"
+                )
+            return await self.async_step_modbus_test_result()
+        return self.async_show_form(
+            step_id="modbus_test_register",
+            data_schema=vol.Schema({
+                vol.Required("register_id"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=[
+                        selector.SelectOptionDict(value=r["id"], label=r["name"])
+                        for r in regs
+                    ]))
+            }),
+        )
+
+    async def async_step_modbus_test_result(self, user_input=None):
+        """Show the last explicit read result without persisting it."""
+        if user_input is not None:
+            return await self.async_step_init()
+        return self.async_show_form(
+            step_id="modbus_test_result",
+            data_schema=vol.Schema({}),
+            description_placeholders={"result": getattr(self, "_test_result", "")},
+        )
+
+    async def async_step_modbus_remove_register(self, user_input=None):
+        registers = self._registers()
+        if not registers:
+            return self.async_abort(reason="no_modbus_registers")
+        if user_input:
+            options = dict(self.config_entry.options)
+            options["modbus_registers"] = [
+                r for r in registers if r["id"] != user_input["register_id"]
+            ]
+            return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="modbus_remove_register",
+            data_schema=vol.Schema({
+                vol.Required("register_id"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=[
+                        selector.SelectOptionDict(value=r["id"], label=r["name"])
+                        for r in registers
+                    ])),
+            }),
+        )
+
+    async def async_step_modbus_remove_connection(self, user_input=None):
+        connections = self._connections()
+        if not connections:
+            return self.async_abort(reason="no_modbus_connections")
+        if user_input:
+            chosen = user_input["connection_id"]
+            if any(r["connection_id"] == chosen for r in self._registers()):
+                return self.async_show_form(
+                    step_id="modbus_remove_connection",
+                    data_schema=self._modbus_remove_connection_schema(),
+                    errors={"base": "connection_has_registers"},
+                )
+            options = dict(self.config_entry.options)
+            options["modbus_connections"] = [c for c in connections
+                                             if c["id"] != chosen]
+            return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="modbus_remove_connection",
+            data_schema=self._modbus_remove_connection_schema(),
+        )
+
+    def _modbus_remove_connection_schema(self):
+        return vol.Schema({
+            vol.Required("connection_id"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=c["id"], label=c["name"])
+                    for c in self._connections()
+                ])),
+        })
