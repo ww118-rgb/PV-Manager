@@ -59,6 +59,9 @@ class PVModbusReadSensor(SensorEntity):
         self._attr_available = False
         self._raw_registers = None
         self._last_success = None
+        self._last_attempt = None
+        self._read_attempts = 0
+        self._successful_reads = 0
         self._last_error = None
         self._poll_lock = asyncio.Lock()
         self._removed = False
@@ -80,6 +83,9 @@ class PVModbusReadSensor(SensorEntity):
             "data_type": self.cfg["data_type"],
             "byte_order": self.cfg.get("byte_order", "ABCD"),
             "last_success": self._last_success,
+            "last_attempt": self._last_attempt,
+            "read_attempts": self._read_attempts,
+            "successful_reads": self._successful_reads,
             "last_error": self._last_error,
         }
 
@@ -113,13 +119,17 @@ class PVModbusReadSensor(SensorEntity):
         if self._poll_lock.locked():
             return
         async with self._poll_lock:
+            self._read_attempts += 1
+            self._last_attempt = datetime.now(timezone.utc).isoformat()
             try:
                 address = int(self.cfg["address"])
                 count = TYPE_WIDTH[self.cfg["data_type"]]
-                if int(self.cfg["function_code"]) == 3:
-                    raw = await self.unit.read_holding_registers(address, count)
-                else:
-                    raw = await self.unit.read_input_registers(address, count)
+                # Bound stalled reads so the next polling interval can retry.
+                async with asyncio.timeout(10):
+                    if int(self.cfg["function_code"]) == 3:
+                        raw = await self.unit.read_holding_registers(address, count)
+                    else:
+                        raw = await self.unit.read_input_registers(address, count)
                 value = decode_registers(
                     list(raw),
                     self.cfg["data_type"],
@@ -130,6 +140,7 @@ class PVModbusReadSensor(SensorEntity):
                 self._raw_registers = list(raw)
                 self._attr_native_value = value
                 self._attr_available = True
+                self._successful_reads += 1
                 self._last_success = datetime.now(timezone.utc).isoformat()
                 self._last_error = None
             except asyncio.CancelledError:

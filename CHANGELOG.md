@@ -1,3 +1,10 @@
+## 0.2.0b3 — Monitoring bei pausierter Regelung
+
+- Netz-, Batterie- und PV-Sensorwerte werden alle 15 Sekunden (bzw. im konfigurierten Intervall) aktualisiert, selbst wenn der Regelschalter aus ist. Dabei werden niemals Aktoren beschrieben.
+- Bei fehlenden Messwerten zeigt der Manager einen klaren Pausiert-/Messfehlerstatus und verwirft veraltete Budgetwerte.
+- Modbus-Lesesensoren führen `last_attempt`, `last_success`, `read_attempts`, `successful_reads` und `last_error` als Diagnoseattribute, um unveränderte Werte von ausgefallener Abfrage zu unterscheiden.
+- Modbus-Lesezugriffe werden nach 10 Sekunden begrenzt, damit blockierte Verbindungen weitere Pollingversuche nicht dauerhaft verhindern.
+
 ## v0.2.0 – universeller Modbus-TCP-Leseadapter
 
 - UI-Konfiguration von mehreren Modbus-TCP-Geräten und Lesedatenpunkten.

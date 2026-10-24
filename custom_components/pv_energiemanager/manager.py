@@ -298,24 +298,33 @@ class PowerManager:
         return effective
 
     async def async_cycle(self):
-        if self._lock.locked() or not self.enabled:
+        """Always refresh measurements; write actuator commands only when enabled.
+
+        Monitoring must remain useful while the EMS is paused. Paused cycles
+        perform no Home Assistant service calls and do not advance demand
+        timers or the active regulation-cycle counter.
+        """
+        if self._lock.locked():
             return
         async with self._lock:
-            self.running = True
+            self.running = self.enabled
             try:
                 self._startup()
                 grid = self._read_watts(self.settings.get("grid_entity"))
                 batt_entity = self.settings.get("battery_entity")
                 battery = self._read_watts(batt_entity) if batt_entity else 0.0
                 pv = self._read_watts(self.settings.get("pv_entity"))
+                if grid is not None and not self.settings.get("grid_export_positive", True):
+                    grid *= -1
+                if battery is not None and not self.settings.get("battery_charge_positive", True):
+                    battery *= -1
+                # Inputs are exposed even when live regulation is switched off.
+                self.values.update({"grid": grid, "battery": battery, "pv": pv})
                 if grid is None or battery is None:
-                    self.status = "Messfehler"
+                    self.values.update({"budget": None, "deficit": None})
+                    self.status = "Messfehler" if self.enabled else "Pausiert (Messfehler)"
                     self.error = "Netz- oder Batteriesensor fehlt/ist ungültig; keine Schreibbefehle"
                     return
-                if not self.settings.get("grid_export_positive", True):
-                    grid *= -1
-                if not self.settings.get("battery_charge_positive", True):
-                    battery *= -1
 
                 now = time.monotonic()
                 consumers = self._build_consumers(now, preview=True)
@@ -326,9 +335,15 @@ class PowerManager:
                 reserve = float(self.settings.get("reserve_w", DEFAULT_RESERVE))
                 budget = grid + battery + accounted - reserve
                 self.values.update({
-                    "grid": grid, "battery": battery, "pv": pv,
                     "budget": round(budget, 1), "deficit": max(0.0, -budget),
                 })
+                if not self.enabled:
+                    # Observation only: never calculate or apply new actuator
+                    # commands, and never touch activation/delay bookkeeping.
+                    self.status = "Pausiert"
+                    self.error = ""
+                    return
+
                 preview = distribute(budget, consumers)
                 for d in self.devices:
                     key = d["id"]

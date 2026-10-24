@@ -137,3 +137,10 @@ Für reproduzierbare Bugreports hilfreich: Home-Assistant-Version, Gerätetyp, a
 - GitHub Actions führen HACS-Validierung, Hassfest und Python-Kernprüfungen durch. Ein erfolgreiches Prüfergebnis ersetzt keinen Test der HA-Runtime mit angeschlossenen Aktoren.
 - **Keine Kompatibilität mit sämtlichen Home-Assistant-Core-Versionen zugesichert.** Die Unterstützung einzelner Core-Versionen wird anhand echter Installations- und Laufzeittests dokumentiert.
 - Der Quellcode ist unabhängig vom alten `power-manager` und verwendet dessen Steuerungslogik nicht.
+
+
+### Fehlerdiagnose bei unveränderten Modbus-Werten (ab 0.2.0b3)
+
+Unter **Entwicklerwerkzeuge → Zustände** die Modbus-Sensor-Entität auswählen und die Attribute `last_attempt`, `last_success`, `read_attempts`, `successful_reads` und `last_error` prüfen. Ein gleichbleibender Zahlenwert kann eine echte gleichbleibende physikalische Messung sein; der Pollingzähler und `last_success` zeigen, ob Abfragen weiterhin funktionieren. Fehlschläge melden die Sensoren als `unavailable` und tragen den Fehler in `last_error` ein.
+
+Der PV-Manager zeigt Netz-, Batterie- und PV-Leistungen nun auch bei ausgeschaltetem Regelschalter an. Die passive Auswertung erzeugt **keine** Aktorbefehle. Die `Regelzyklen` zählen weiterhin nur aktive Regelungszyklen.
