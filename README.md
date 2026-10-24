@@ -139,7 +139,7 @@ Für reproduzierbare Bugreports hilfreich: Home-Assistant-Version, Gerätetyp, a
 - Der Quellcode ist unabhängig vom alten `power-manager` und verwendet dessen Steuerungslogik nicht.
 
 
-### Fehlerdiagnose bei unveränderten Modbus-Werten (ab 0.2.0b3)
+### Fehlerdiagnose bei unveränderten Modbus-Werten (ab 0.2.0b4)
 
 Unter **Entwicklerwerkzeuge → Zustände** die Modbus-Sensor-Entität auswählen und die Attribute `last_attempt`, `last_success`, `read_attempts`, `successful_reads` und `last_error` prüfen. Ein gleichbleibender Zahlenwert kann eine echte gleichbleibende physikalische Messung sein; der Pollingzähler und `last_success` zeigen, ob Abfragen weiterhin funktionieren. Fehlschläge melden die Sensoren als `unavailable` und tragen den Fehler in `last_error` ein.
 

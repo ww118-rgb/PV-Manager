@@ -21,7 +21,9 @@ def module(name, **fields):
 
 
 def fake_modules():
-    def passthrough(f): return f
+    def passthrough(f):
+        f.__ha_callback__ = True
+        return f
 
     class FakeEntity:
         def __init__(self): self.written = 0
@@ -169,6 +171,88 @@ class RuntimeMonitoringTests(unittest.TestCase):
         self.assertEqual(s.extra_state_attributes['read_attempts'], 1)
         self.assertEqual(s.extra_state_attributes['successful_reads'], 0)
         self.assertIn('connection lost', s.extra_state_attributes['last_error'])
+
+    def test_modbus_time_callback_runs_consecutive_intervals(self):
+        """Regression: repeated timed reads need an event-loop callback."""
+        scheduled = []
+
+        def strict_tracker(hass, action, interval):
+            self.assertTrue(getattr(action, "__ha_callback__", False))
+            scheduled.append(action)
+            return lambda: None
+
+        class Unit:
+            def __init__(self):
+                self.value = 100
+
+            async def read_holding_registers(self, address, count):
+                self.value += 10
+                return [self.value]
+
+        async def scenario():
+            hass = types.SimpleNamespace(async_create_task=asyncio.create_task)
+            config = {"id": "r", "name": "Grid", "function_code": 3,
+                      "address": 5, "data_type": "uint16", "byte_order": "ABCD",
+                      "scale": 1, "offset": 0, "poll_seconds": 15}
+            sensor = self.modbus_module.PVModbusReadSensor(
+                hass, types.SimpleNamespace(entry_id="test"),
+                {"id": "c", "name": "Connection"}, config, Unit()
+            )
+            sensor.async_write_ha_state = lambda: None
+            with patch.object(self.modbus_module, "async_track_time_interval", strict_tracker):
+                await sensor.async_added_to_hass()
+            await asyncio.sleep(0.01)
+            self.assertEqual(sensor.extra_state_attributes["successful_reads"], 1)
+            scheduled[0](None)
+            await asyncio.sleep(0.01)
+            scheduled[0](None)
+            await asyncio.sleep(0.01)
+            self.assertEqual(sensor.extra_state_attributes["successful_reads"], 3)
+            self.assertEqual(sensor._attr_native_value, 130)
+
+        asyncio.run(scenario())
+
+    def test_manager_time_callback_updates_inputs_when_paused(self):
+        """Regression: EMS timer must trigger without enabling actuator writes."""
+        scheduled = []
+
+        def strict_tracker(hass, action, interval):
+            self.assertTrue(getattr(action, "__ha_callback__", False))
+            scheduled.append(action)
+            return lambda: None
+
+        class State:
+            def __init__(self, value):
+                self.state = str(value)
+                self.attributes = {"unit_of_measurement": "kW"}
+
+        async def scenario():
+            grid = State(1.0)
+            hass = types.SimpleNamespace(
+                async_create_task=asyncio.create_task,
+                states=types.SimpleNamespace(
+                    get=lambda entity: grid if entity == "sensor.grid" else None
+                ),
+            )
+            entry = types.SimpleNamespace(
+                entry_id="test", options={},
+                data={"grid_entity": "sensor.grid", "interval_s": 15},
+            )
+            manager = self.manager_module.PowerManager(hass, entry)
+            with patch.object(self.manager_module, "async_track_time_interval", strict_tracker):
+                manager.start()
+            scheduled[0](None)
+            await asyncio.sleep(0.01)
+            self.assertEqual(manager.values["grid"], 1000)
+            grid.state = "3.0"
+            scheduled[0](None)
+            await asyncio.sleep(0.01)
+            self.assertEqual(manager.values["grid"], 3000)
+            self.assertEqual(manager.status, "Pausiert")
+            self.assertEqual(manager.cycle_count, 0)
+            manager.stop()
+
+        asyncio.run(scenario())
 
 
 if __name__ == '__main__':

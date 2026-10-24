@@ -7,6 +7,7 @@ import logging
 
 from homeassistant.components.modbus import async_get_unit
 from homeassistant.components.sensor import SensorEntity
+from homeassistant.core import callback
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.event import async_track_time_interval
 from modbus_connection import ModbusTcpParams
@@ -108,6 +109,7 @@ class PVModbusReadSensor(SensorEntity):
             task.cancel()
         self._pending_tasks.clear()
 
+    @callback
     def _schedule_refresh(self, _now):
         if self._removed or self._poll_lock.locked():
             return

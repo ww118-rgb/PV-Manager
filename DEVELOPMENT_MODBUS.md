@@ -63,3 +63,7 @@ und Portweiterleitungen werden außerhalb des PV-Managers konfiguriert.
 5. Nach HA-Neustart bleiben Datenpunkte und Entity-IDs erhalten.
 6. Vorhandene EMS-Konfigurationen behalten ihre Auswahl und funktionieren
    ohne Modbus-Konfiguration unverändert weiter.
+
+### Korrektur 0.2.0b4
+
+Die registrierten `async_track_time_interval`-Aktionen laufen mit `@callback` auf dem HA-Ereignisloop. Ohne die Dekoration kann Home Assistant die Aufrufe in einen Executor-Thread verlegen. Das erklärt einen einmaligen Modbus-Leseerfolg mit `read_attempts: 1` ohne nachfolgende Abfragen und einen pausiert unbekannten Energiemanagerwert. Nach dem Update müssen Abfrage- und Erfolgszähler steigen; der Energiemanager aktualisiert seine Eingangswerte bei ausgeschalteter Regelung.

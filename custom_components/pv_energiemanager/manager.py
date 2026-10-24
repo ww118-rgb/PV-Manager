@@ -69,9 +69,14 @@ class PowerManager:
         interval = int(self.settings.get("interval_s", DEFAULT_INTERVAL))
         self._unsubscribe = async_track_time_interval(
             self.hass,
-            lambda _: self.hass.async_create_task(self.async_cycle()),
+            self._schedule_cycle,
             timedelta(seconds=interval),
         )
+
+    @callback
+    def _schedule_cycle(self, _now):
+        """Schedule the monitoring/regulation cycle on HA event-loop thread."""
+        self.hass.async_create_task(self.async_cycle())
 
     def stop(self):
         if self._unsubscribe:

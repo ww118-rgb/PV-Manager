@@ -1,3 +1,10 @@
+## 0.2.0b4 — Zeitsteuerung repariert
+
+- Modbus-Zeitcallback mit HA-@callback dekoriert, damit folgende Polling-Abfragen sicher auf dem Ereignisloop laufen.
+- Monitoring-/Regelzyklus nutzt ebenfalls einen gekennzeichneten Callback statt einer Executor-Lambda.
+- Regressionstests für mehrere Intervallaufrufe; keine Änderung an der Verteilungsformel.
+- Gerätekonfigurationen und Entity-IDs bleiben erhalten.
+
 ## 0.2.0b3 — Monitoring bei pausierter Regelung
 
 - Netz-, Batterie- und PV-Sensorwerte werden alle 15 Sekunden (bzw. im konfigurierten Intervall) aktualisiert, selbst wenn der Regelschalter aus ist. Dabei werden niemals Aktoren beschrieben.
