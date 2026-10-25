@@ -1,10 +1,12 @@
-# PV-Manager für Home Assistant – v0.2.0 (Modbus TCP lesen)
+# PV-Manager für Home Assistant – v0.2.0b5 (Modbus TCP lesen)
 
 **Aktueller Stand:** Die bestehende PV-Überschussregelung bleibt erhalten.
 Neu: Modbus-TCP-Verbindungen und frei definierbare **Lesesensoren** werden
 über die Home-Assistant-Konfigurationsdialoge eingerichtet – ohne YAML,
 Helfer oder eigene Skripte. Der Modbus-Adapter benutzt die geteilte
 Verbindungsinfrastruktur aus Home Assistant Core 2026.9+.
+
+**Modbus-Lesesensoren ohne Einheit:** Für Zustandsregister (z. B. UINT16-EVSE-Status) das Einheitenfeld im Lesesensor-Dialog vollständig leer lassen. Leere Einheiten bleiben seit v0.2.0b5 leer; `W` ist nur noch ein Vorschlag. Für Leistungsregister die tatsächliche Einheit angeben.
 
 **Modbus-Schreibaktoren sind in dieser Version noch nicht enthalten.** Die
 Berechnung kann weiterhin vorhandene beschreibbare HA-`number`- und

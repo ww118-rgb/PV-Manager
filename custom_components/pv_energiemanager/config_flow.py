@@ -157,7 +157,11 @@ def _modbus_register_schema(connections: list[dict], values=None):
         vol.Required("offset", default=values.get("offset", 0.0)): selector.NumberSelector(
             selector.NumberSelectorConfig(min=-1000000, max=1000000,
                                           step="any", mode="box")),
-        vol.Optional("unit", default=values.get("unit", "W")): selector.TextSelector(),
+        # suggested_value displays the previous/unit suggestion without
+        # applying a Voluptuous default when the user clears the field.
+        # Unit-less registers (e.g. EVSE state enumerations) must stay unit-less.
+        vol.Optional("unit", description={"suggested_value": values.get("unit", "W")}):
+            selector.TextSelector(),
         vol.Required("poll_seconds", default=values.get("poll_seconds", 15)): _num(5, 3600),
     })
 

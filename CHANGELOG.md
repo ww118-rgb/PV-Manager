@@ -1,3 +1,10 @@
+## 0.2.0b5 — Einheitenloser Modbus-Statussensor
+
+- Einheitenfeld in Modbus-Lesedatenpunkten wird nicht mehr ungewollt mit `W` vorbelegt, wenn es geleert wurde.
+- Native Sensoren für reine Zustandsnummern (UINT16, beispielsweise Wallbox-Status) lassen sich ohne physikalische Einheit anlegen.
+- Bereits vorhandene Einheiten, Registerdefinitionen und Entity-IDs bleiben erhalten.
+- Modbus-Schreiben (FC06/FC16) ist weiterhin **nicht** Bestandteil dieser Version; für Wallboxen muss 0 A = unbegrenzt explizit berücksichtigt werden.
+
 ## 0.2.0b4 — Zeitsteuerung repariert
 
 - Modbus-Zeitcallback mit HA-@callback dekoriert, damit folgende Polling-Abfragen sicher auf dem Ereignisloop laufen.
