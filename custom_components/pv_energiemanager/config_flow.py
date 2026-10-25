@@ -10,6 +10,7 @@ from homeassistant.helpers import selector
 
 from .modbus_codec import TYPE_WIDTH, WORD_ORDER, decode_registers
 from .modbus_validation import validate_connection, validate_read_point
+from .modbus_writer import validate_write_point
 
 from .const import (
     DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE,
@@ -157,14 +158,45 @@ def _modbus_register_schema(connections: list[dict], values=None):
         vol.Required("offset", default=values.get("offset", 0.0)): selector.NumberSelector(
             selector.NumberSelectorConfig(min=-1000000, max=1000000,
                                           step="any", mode="box")),
-        # suggested_value displays the previous/unit suggestion without
-        # applying a Voluptuous default when the user clears the field.
-        # Unit-less registers (e.g. EVSE state enumerations) must stay unit-less.
+        # Do not force W on unit-less numerical status sensors.
         vol.Optional("unit", description={"suggested_value": values.get("unit", "W")}):
             selector.TextSelector(),
         vol.Required("poll_seconds", default=values.get("poll_seconds", 15)): _num(5, 3600),
     })
 
+
+
+def _modbus_write_schema(connections: list[dict], values=None):
+    """Separate active demand from explicit STOP command mapping."""
+    values = values or {}
+    return vol.Schema({
+        vol.Required("connection_id", default=values.get("connection_id", connections[0]["id"])):
+            selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                selector.SelectOptionDict(value=c["id"], label=c["name"]) for c in connections
+            ])),
+        vol.Required("name", default=values.get("name", "")): selector.TextSelector(),
+        vol.Required("address", default=values.get("address", 0)): _num(0, 65535),
+        vol.Required("function_code", default=str(values.get("function_code", 16))):
+            selector.SelectSelector(selector.SelectSelectorConfig(options=["6", "16"])),
+        vol.Required("data_type", default=values.get("data_type", "float32")):
+            selector.SelectSelector(selector.SelectSelectorConfig(options=list(TYPE_WIDTH))),
+        vol.Required("byte_order", default=values.get("byte_order", "ABCD")):
+            selector.SelectSelector(selector.SelectSelectorConfig(options=list(WORD_ORDER))),
+        vol.Required("unit", default=values.get("unit", "A")): selector.TextSelector(),
+        vol.Required("active_min", default=values.get("active_min", 6)):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=0.001, max=1000000, step="any", mode="box")),
+        vol.Required("active_max", default=values.get("active_max", 16)):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=0.001, max=1000000, step="any", mode="box")),
+        vol.Required("step", default=values.get("step", 1)):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=0.001, max=1000000, step="any", mode="box")),
+        # Must be typed explicitly. 0 is unsafe on devices where it means unlimited.
+        vol.Required("off_value", description={"suggested_value": values.get("off_value")}):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=-1000000, max=1000000, step="any", mode="box")),
+        vol.Optional("scale", default=values.get("scale", 1)):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=-1000000, max=1000000, step="any", mode="box")),
+        vol.Optional("offset", default=values.get("offset", 0)):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=-1000000, max=1000000, step="any", mode="box")),
+    })
 
 class PVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Create a single local EMS instance."""
@@ -203,7 +235,8 @@ class PVOptionsFlow(config_entries.OptionsFlow):
             menu_options=["general", "add", "edit", "remove",
                           "modbus_connection", "modbus_edit_connection",
                           "modbus_register", "modbus_edit_register",
-                          "modbus_test_register", "modbus_remove_register", "modbus_remove_connection"],
+                          "modbus_test_register", "modbus_remove_register", "modbus_remove_connection",
+                          "modbus_write", "modbus_edit_write", "modbus_remove_write"],
         )
 
     async def async_step_general(self, user_input=None):
@@ -301,6 +334,82 @@ class PVOptionsFlow(config_entries.OptionsFlow):
 
     def _registers(self):
         return list(self.config_entry.options.get("modbus_registers", []))
+
+    def _write_points(self):
+        return list(self.config_entry.options.get("modbus_write_points", []))
+
+    async def async_step_modbus_write(self, user_input=None):
+        """Create a write-only number with explicitly defined stop semantics."""
+        connections = self._connections()
+        if not connections:
+            return self.async_abort(reason="no_modbus_connections")
+        errors = {}
+        if user_input is not None:
+            point, error = validate_write_point(user_input, {c["id"] for c in connections})
+            if error:
+                errors["base"] = error
+            else:
+                point["id"] = uuid4().hex[:12]
+                options = dict(self.config_entry.options)
+                options["modbus_write_points"] = [*self._write_points(), point]
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(
+            step_id="modbus_write", data_schema=_modbus_write_schema(connections), errors=errors
+        )
+
+    async def async_step_modbus_edit_write(self, user_input=None):
+        points = self._write_points()
+        if not points:
+            return self.async_abort(reason="no_modbus_write_points")
+        if user_input is not None:
+            self._chosen_write_point = user_input["write_id"]
+            return await self.async_step_modbus_edit_write_form()
+        return self.async_show_form(step_id="modbus_edit_write", data_schema=vol.Schema({
+            vol.Required("write_id"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=p["id"], label=p["name"]) for p in points
+                ])
+            )
+        }))
+
+    async def async_step_modbus_edit_write_form(self, user_input=None):
+        points = self._write_points()
+        old = next((p for p in points if p["id"] == self._chosen_write_point), None)
+        if old is None:
+            return self.async_abort(reason="no_modbus_write_points")
+        errors = {}
+        if user_input is not None:
+            point, error = validate_write_point(user_input, {c["id"] for c in self._connections()})
+            if error:
+                errors["base"] = error
+            else:
+                point["id"] = old["id"]
+                options = dict(self.config_entry.options)
+                options["modbus_write_points"] = [
+                    point if x["id"] == old["id"] else x for x in points
+                ]
+                return self.async_create_entry(title="", data=options)
+        return self.async_show_form(step_id="modbus_edit_write_form",
+                                    data_schema=_modbus_write_schema(self._connections(), old),
+                                    errors=errors)
+
+    async def async_step_modbus_remove_write(self, user_input=None):
+        points = self._write_points()
+        if not points:
+            return self.async_abort(reason="no_modbus_write_points")
+        if user_input is not None:
+            options = dict(self.config_entry.options)
+            options["modbus_write_points"] = [
+                p for p in points if p["id"] != user_input["write_id"]
+            ]
+            return self.async_create_entry(title="", data=options)
+        return self.async_show_form(step_id="modbus_remove_write", data_schema=vol.Schema({
+            vol.Required("write_id"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=p["id"], label=p["name"]) for p in points
+                ])
+            )
+        }))
 
     async def async_step_modbus_connection(self, user_input=None):
         """Register a Modbus-TCP endpoint, no network I/O until a register is read."""
@@ -524,7 +633,8 @@ class PVOptionsFlow(config_entries.OptionsFlow):
             return self.async_abort(reason="no_modbus_connections")
         if user_input:
             chosen = user_input["connection_id"]
-            if any(r["connection_id"] == chosen for r in self._registers()):
+            if (any(r["connection_id"] == chosen for r in self._registers())
+                    or any(w["connection_id"] == chosen for w in self._write_points())):
                 return self.async_show_form(
                     step_id="modbus_remove_connection",
                     data_schema=self._modbus_remove_connection_schema(),

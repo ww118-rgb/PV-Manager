@@ -35,7 +35,10 @@
           "modbus_remove_connection": "Remove Modbus device",
           "modbus_edit_connection": "Edit Modbus device",
           "modbus_edit_register": "Edit Modbus sensor",
-          "modbus_test_register": "Test-read Modbus register"
+          "modbus_test_register": "Test-read Modbus register",
+          "modbus_write": "Add Modbus write actuator",
+          "modbus_edit_write": "Edit Modbus write actuator",
+          "modbus_remove_write": "Remove Modbus write actuator"
         }
       },
       "general": {
@@ -189,6 +192,55 @@
       "modbus_test_result": {
         "title": "Test-read result",
         "description": "{result}"
+      },
+      "modbus_write": {
+        "title": "Add Modbus write actuator",
+        "description": "Zero from the EMS maps to the explicitly configured pause/off value. No write on setup or restart.",
+        "data": {
+          "connection_id": "Modbus device",
+          "name": "Setpoint name",
+          "address": "Write register address (zero-based)",
+          "function_code": "Write function (FC06/FC16)",
+          "data_type": "Register data type",
+          "byte_order": "Byte/word order",
+          "unit": "Physical unit (A, W, kW, etc.)",
+          "active_min": "Minimum active setpoint",
+          "active_max": "Maximum active setpoint",
+          "step": "Setpoint step",
+          "off_value": "Explicit device value for pause/off (zero can be unsafe!)",
+          "scale": "Device scaling (value = register × scale + offset)",
+          "offset": "Device offset"
+        }
+      },
+      "modbus_edit_write": {
+        "title": "Edit Modbus write actuator",
+        "data": {
+          "write_id": "Choose write actuator"
+        }
+      },
+      "modbus_edit_write_form": {
+        "title": "Edit Modbus write actuator",
+        "data": {
+          "connection_id": "Modbus device",
+          "name": "Setpoint name",
+          "address": "Write register address (zero-based)",
+          "function_code": "Write function (FC06/FC16)",
+          "data_type": "Register data type",
+          "byte_order": "Byte/word order",
+          "unit": "Physical unit (A, W, kW, etc.)",
+          "active_min": "Minimum active setpoint",
+          "active_max": "Maximum active setpoint",
+          "step": "Setpoint step",
+          "off_value": "Explicit device value for pause/off (zero can be unsafe!)",
+          "scale": "Device scaling (value = register × scale + offset)",
+          "offset": "Device offset"
+        }
+      },
+      "modbus_remove_write": {
+        "title": "Remove Modbus write actuator",
+        "data": {
+          "write_id": "Choose write actuator"
+        }
       }
     },
     "error": {
@@ -201,12 +253,15 @@
       "duplicate_endpoint": "This host, port and unit ID are already configured",
       "invalid_register": "Invalid name or register address",
       "invalid_scale": "Scaling factor must not be zero",
-      "connection_has_registers": "Remove the device sensors first"
+      "connection_has_registers": "Remove the device sensors first",
+      "invalid_write_command": "Invalid or unencodable write command",
+      "invalid_limits": "Invalid active setpoint limits"
     },
     "abort": {
       "no_devices": "No consumers configured.",
       "no_modbus_connections": "No Modbus devices configured",
-      "no_modbus_registers": "No Modbus sensors configured"
+      "no_modbus_registers": "No Modbus sensors configured",
+      "no_modbus_write_points": "No Modbus write actuators configured"
     }
   }
 }

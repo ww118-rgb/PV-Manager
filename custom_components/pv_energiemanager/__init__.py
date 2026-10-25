@@ -3,7 +3,7 @@ from homeassistant.const import Platform
 
 from .manager import PowerManager
 
-PLATFORMS = [Platform.SENSOR, Platform.SWITCH]
+PLATFORMS = [Platform.SENSOR, Platform.SWITCH, Platform.NUMBER]
 
 
 async def async_setup_entry(hass, entry):

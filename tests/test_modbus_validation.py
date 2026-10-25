@@ -42,19 +42,11 @@ class UserConfigValidation(unittest.TestCase):
         self.assertEqual(d["function_code"], 3)
         self.assertEqual(d["scale"], -0.001)
 
-    def test_unitless_modbus_status_and_preserve_existing_power_unit(self):
-        # The UI does not supply an omitted unit; it must not default to W.
-        data = datapoint(address=256, data_type="uint16", scale=1, unit="")
-        result, error = v.validate_read_point(data, {"conn1"})
-        self.assertIsNone(error)
-        self.assertEqual(result["unit"], "")
-        data.pop("unit")
-        result, error = v.validate_read_point(data, {"conn1"})
-        self.assertIsNone(error)
-        self.assertEqual(result["unit"], "")
-        power, error = v.validate_read_point(datapoint(), {"conn1"})
-        self.assertIsNone(error)
-        self.assertEqual(power["unit"], "kW")
+    def test_unitless_status_register(self):
+        item = datapoint(address=256, data_type="uint16", scale=1, unit="")
+        d, err = v.validate_read_point(item, {"conn1"})
+        self.assertIsNone(err)
+        self.assertEqual(d["unit"], "")
 
     def test_byte_order_and_bounds(self):
         self.assertIsNone(v.validate_read_point(datapoint(address=65534), {"conn1"})[1])

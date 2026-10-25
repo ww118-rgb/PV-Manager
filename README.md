@@ -1,12 +1,26 @@
-# PV-Manager für Home Assistant – v0.2.0b5 (Modbus TCP lesen)
+# PV-Manager 0.2.1a1 – universelle Modbus-Schreibadapter-Beta
+
+**Entwicklungsfassung, nicht ungeprüft auf reale Anlagen anwenden.**
+
+Modbus-TCP-Output als native Home-Assistant-`number`-Entität über den OptionsFlow einrichten: IP/Port/Unit, Registeradresse, FC06 oder FC16, Datentyp, Bytefolge, Einheit, aktiver Bereich, Schrittweite, Skalierung und **verpflichtender Pause-/Aus-Gerätewert**.
+
+Der Energiemanager gibt weiterhin W aus, kann über die bestehende Verbraucherkonfiguration nach A, W oder kW umrechnen und die `number`-Entität ansprechen. Die Entität übersetzt den HA-Nullwert ausschließlich in den konfigurierten Geräte-Pausewert. Für eine dreiphasige Wallbox mit 230 V bedeutet 6 A = 4.140 W; 4.414 W wird bei 1-A-Schritten auf 6 A **abgerundet**, nicht exakt umgerechnet.
+
+**Inbetriebnahme:** Zuerst Geräte-Pause-/Auswert anhand der echten Gerätedokumentation prüfen. `number` ist nach Neustart bewusst `unknown`, bis der Nutzer über HA explizit einen ersten sicheren Befehl ausführt. Dabei signalisiert die Anzeige lediglich den letzten gesendeten Befehl – keine echte Istwertrückmeldung. Der EMS-Regelschalter bleibt nach Neustart ausgeschaltet.
+
+## Einschränkung
+
+Off und laufender Sollwert werden in diesem ersten Adapter **auf dasselbe Schreibregister** übertragen. Geräte mit separatem Freigaberegister, mehreren Schreibschritten oder verpflichtender Rücklesebestätigung benötigen eine spätere Erweiterung und dürfen hiermit noch nicht betrieben werden. MQTT und OCPP folgen separat. Die alte v0.2.0b5 kann weiter auf dem main-Branch laufen.
+
+---
+
+# PV-Manager für Home Assistant – v0.2.0 (Modbus TCP lesen)
 
 **Aktueller Stand:** Die bestehende PV-Überschussregelung bleibt erhalten.
 Neu: Modbus-TCP-Verbindungen und frei definierbare **Lesesensoren** werden
 über die Home-Assistant-Konfigurationsdialoge eingerichtet – ohne YAML,
 Helfer oder eigene Skripte. Der Modbus-Adapter benutzt die geteilte
 Verbindungsinfrastruktur aus Home Assistant Core 2026.9+.
-
-**Modbus-Lesesensoren ohne Einheit:** Für Zustandsregister (z. B. UINT16-EVSE-Status) das Einheitenfeld im Lesesensor-Dialog vollständig leer lassen. Leere Einheiten bleiben seit v0.2.0b5 leer; `W` ist nur noch ein Vorschlag. Für Leistungsregister die tatsächliche Einheit angeben.
 
 **Modbus-Schreibaktoren sind in dieser Version noch nicht enthalten.** Die
 Berechnung kann weiterhin vorhandene beschreibbare HA-`number`- und

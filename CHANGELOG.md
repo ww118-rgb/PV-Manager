@@ -1,16 +1,19 @@
-## 0.2.0b5 — Einheitenloser Modbus-Statussensor
+## 0.2.1a1 — Universeller Modbus-Schreibadapter (Entwicklungsbranch)
 
-- Einheitenfeld in Modbus-Lesedatenpunkten wird nicht mehr ungewollt mit `W` vorbelegt, wenn es geleert wurde.
-- Native Sensoren für reine Zustandsnummern (UINT16, beispielsweise Wallbox-Status) lassen sich ohne physikalische Einheit anlegen.
-- Bereits vorhandene Einheiten, Registerdefinitionen und Entity-IDs bleiben erhalten.
-- Modbus-Schreiben (FC06/FC16) ist weiterhin **nicht** Bestandteil dieser Version; für Wallboxen muss 0 A = unbegrenzt explizit berücksichtigt werden.
+- Native `number`-Entitäten für konfigurierbare FC06/FC16-Schreibregister (16-/32-Bit und FLOAT32).
+- Explizit eingestellter gerätespezifischer Pause-/Aus-Wert; EMS-Null darf keinesfalls blind als Modbus-Rohwert 0 gesendet werden.
+- Getrennte Darstellung: 0/aktive Sollwerte als HA-Number; nach Befehlserfolg „last_sent_not_read_back“; unbekannter Zustand nach Neustart.
+- Bisherige Lesesensoren und Verteilungsberechnung bleiben unverändert.
+- Kein automatisches Schreiben beim Start oder durch das Anlegen eines Datenpunktes.
+- **Beta/Entwicklungsstand:** Vor echter Hardware erst mit einem Simulator testen. Noch kein separater Enable-/Readback-Kanal und noch keine geführte Geräte-Einrichtung.
 
-## 0.2.0b4 — Zeitsteuerung repariert
+## 0.2.0b4 — Zeitsteuerung auf dem Home-Assistant-Ereignisloop repariert
 
-- Modbus-Zeitcallback mit HA-@callback dekoriert, damit folgende Polling-Abfragen sicher auf dem Ereignisloop laufen.
-- Monitoring-/Regelzyklus nutzt ebenfalls einen gekennzeichneten Callback statt einer Executor-Lambda.
-- Regressionstests für mehrere Intervallaufrufe; keine Änderung an der Verteilungsformel.
-- Gerätekonfigurationen und Entity-IDs bleiben erhalten.
+- Modbus-Intervallcallback ist mit `@callback` gekennzeichnet und führt die nächste Abfrage auf dem Home-Assistant-Ereignisloop aus.
+- Monitoring- und Regelzyklus verwenden ebenfalls einen korrekt gekennzeichneten Event-Loop-Callback statt einer nicht markierten Lambda-Funktion.
+- Behebt die beobachtete Situation: Modbus `read_attempts` bleibt nach initialem erfolgreichem Abruf bei `1`; Managerwerte bleiben `Unbekannt`.
+- Regressionstests prüfen den registrierten Callback und mehrere aufeinanderfolgende Intervalle.
+- Gespeicherte Geräte, Register, Entitäts-IDs und Prioritäten bleiben unverändert. Keine Änderung der Verteilungsformel oder Aktorschnittstelle.
 
 ## 0.2.0b3 — Monitoring bei pausierter Regelung
 

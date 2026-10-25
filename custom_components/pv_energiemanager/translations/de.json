@@ -35,7 +35,10 @@
           "modbus_remove_connection": "Modbus-Gerät entfernen",
           "modbus_edit_connection": "Modbus-Gerät bearbeiten",
           "modbus_edit_register": "Modbus-Sensor bearbeiten",
-          "modbus_test_register": "Modbus-Register testweise lesen"
+          "modbus_test_register": "Modbus-Register testweise lesen",
+          "modbus_write": "Modbus-Schreibaktor hinzufügen",
+          "modbus_edit_write": "Modbus-Schreibaktor bearbeiten",
+          "modbus_remove_write": "Modbus-Schreibaktor entfernen"
         }
       },
       "general": {
@@ -189,6 +192,55 @@
       "modbus_test_result": {
         "title": "Ergebnis des Lesetests",
         "description": "{result}"
+      },
+      "modbus_write": {
+        "title": "Modbus-Schreibaktor hinzufügen",
+        "description": "Für Regler-Sollwert 0 sendet der Aktor den ausdrücklich konfigurierten Pause-/Aus-Wert. Kein automatischer Schreibversuch beim Anlegen oder Neustart.",
+        "data": {
+          "connection_id": "Modbus-Gerät",
+          "name": "Name des Stellwerts",
+          "address": "Schreibregisteradresse (0-basiert)",
+          "function_code": "Schreibfunktion (FC06/FC16)",
+          "data_type": "Schreibdatentyp",
+          "byte_order": "Byte-/Wortreihenfolge",
+          "unit": "Physikalische Geräte-Einheit (A, W, kW usw.)",
+          "active_min": "Kleinster aktiver Sollwert (z. B. 6 A)",
+          "active_max": "Größter aktiver Sollwert (z. B. 16 A)",
+          "step": "Schrittweite (z. B. 1 A)",
+          "off_value": "Expliziter Gerätewert für Pause/Aus (0 kann gefährlich sein!)",
+          "scale": "Gerätefaktor (Wert = Register × Faktor + Offset)",
+          "offset": "Geräteoffset"
+        }
+      },
+      "modbus_edit_write": {
+        "title": "Modbus-Schreibaktor bearbeiten",
+        "data": {
+          "write_id": "Schreibaktor auswählen"
+        }
+      },
+      "modbus_edit_write_form": {
+        "title": "Modbus-Schreibaktor bearbeiten",
+        "data": {
+          "connection_id": "Modbus-Gerät",
+          "name": "Name des Stellwerts",
+          "address": "Schreibregisteradresse (0-basiert)",
+          "function_code": "Schreibfunktion (FC06/FC16)",
+          "data_type": "Schreibdatentyp",
+          "byte_order": "Byte-/Wortreihenfolge",
+          "unit": "Physikalische Geräte-Einheit (A, W, kW usw.)",
+          "active_min": "Kleinster aktiver Sollwert (z. B. 6 A)",
+          "active_max": "Größter aktiver Sollwert (z. B. 16 A)",
+          "step": "Schrittweite (z. B. 1 A)",
+          "off_value": "Expliziter Gerätewert für Pause/Aus (0 kann gefährlich sein!)",
+          "scale": "Gerätefaktor (Wert = Register × Faktor + Offset)",
+          "offset": "Geräteoffset"
+        }
+      },
+      "modbus_remove_write": {
+        "title": "Modbus-Schreibaktor entfernen",
+        "data": {
+          "write_id": "Schreibaktor auswählen"
+        }
       }
     },
     "error": {
@@ -201,12 +253,15 @@
       "duplicate_endpoint": "Host, Port und Unit-ID sind bereits konfiguriert",
       "invalid_register": "Ungültiger Name oder Registeradresse",
       "invalid_scale": "Skalierungsfaktor darf nicht null sein",
-      "connection_has_registers": "Zuerst die Sensoren dieses Geräts entfernen"
+      "connection_has_registers": "Zuerst die Sensoren dieses Geräts entfernen",
+      "invalid_write_command": "Ungültiger oder nicht codierbarer Schreibwert",
+      "invalid_limits": "Ungültiger aktiver Sollwertbereich"
     },
     "abort": {
       "no_devices": "Keine Verbraucher eingerichtet.",
       "no_modbus_connections": "Keine Modbus-Geräte eingerichtet",
-      "no_modbus_registers": "Keine Modbus-Sensoren eingerichtet"
+      "no_modbus_registers": "Keine Modbus-Sensoren eingerichtet",
+      "no_modbus_write_points": "Keine Modbus-Schreibaktoren vorhanden"
     }
   }
 }
