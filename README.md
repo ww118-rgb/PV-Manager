@@ -1,3 +1,9 @@
+## Ab 0.2.2b4: Abgleich zwischen Sollwert, Ampere und tatsächlicher Last
+
+Intern plant der Energiemanager in Watt. Ein Verbraucher mit Ampere-Ausgang wird mit konfigurierter Spannung/Phasenzahl in eine gültige, nicht über dem Leistungsbudget liegende Stromstufe umgerechnet. Nach dem expliziten Aktivieren der Regelung erhalten Verbraucher mit geplantem 0-W-Sollwert einen tatsächlichen Pause-/Aus-Befehl – **ausschließlich** den gerätespezifisch konfigurierten. Der 0-W-Sollwert ist kein physikalischer Wirknachweis. Eine unerwartet weiterlaufende Wallbox wird nicht als vermeintlich wieder frei gewordener Überschuss zum Budget addiert; eine dauerhafte Abweichung erscheint als „Aktorabweichung“. Ohne unabhängigen Istleistungssensor bleibt die tatsächliche Leistungsaufnahme unbestätigt.
+
+Vorsicht: Bei der für Tests verwendeten Wallbox bedeutet der rohe Registerwert 0 A „unbegrenzt“. Der Pausewert (im Simulator 1 A) muss **pro Gerät** geprüft werden, bevor automatische Steuerbefehle zugelassen werden. Bei der Wärmepumpe deaktiviert 0 W ggf. nur den PV-Sollwert, nicht die gesamte Heizung.
+
 ## Wichtig: Modbus zuerst einrichten, ohne vorhandene Sensoren
 
 Ab 0.2.2b3 kann die Integration **ohne Netzsensor** angelegt werden. Der erste Einrichtungsdialog hat nur einen optionalen bereits vorhandenen Netzsensor. Nach Installation unter **Konfigurieren → Modbus-Datenquelle hinzufügen** die Geräteverbindung und den Netz-Lesesensor erstellen. Erst danach unter **Anlage einrichten** als Netzsensor zuordnen. Ohne gültige Netzleistung ist die Regelungsfreigabe gesperrt. Siehe [Einrichtungsassistent](EINRICHTUNGSASSISTENT.md).

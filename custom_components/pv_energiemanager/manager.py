@@ -50,6 +50,10 @@ class PowerManager:
         self._unsubscribe = None
         self._lock = asyncio.Lock()
         self._bootstrapped = False
+        # Zero desired is not proof of an executed device pause.
+        self._pending_zero_sync: set[str] = set()
+        self._last_zero_write: dict[str, float] = {}
+        self._unconfirmed_stop: set[str] = set()
 
     @callback
     def subscribe(self, listener: Callable):
@@ -94,6 +98,11 @@ class PowerManager:
             self.error = ("Netzleistung fehlt oder liefert keinen gültigen Wert. "
                           "Bitte erst eine Netzleistungs-Entität zuordnen.")
         else:
+            if value and not self.enabled:
+                self._pending_zero_sync = {d["id"] for d in self.devices}
+                self._unconfirmed_stop.clear()
+            elif not value:
+                self._pending_zero_sync.clear()
             self.enabled = value
             self.status = "Bereit" if value else "Pausiert"
             self.error = ""
@@ -251,13 +260,79 @@ class PowerManager:
             raise ValueError(f"Ausgang {entity}: Sollleistung nach Rundung unter Minimum")
         return value, effective
 
-    async def _write(self, d: dict, new_w: int) -> int:
-        """Write to native HA entities (Modbus/MQTT/OCPP bridge is external)."""
+    def _reconcile_zero(self, device: dict, now: float) -> bool:
+        """Resend configured pause when zero is not known to be executed."""
+        key = device["id"]
+        if key in self._pending_zero_sync:
+            return True
+        if self.last_targets.get(key, 0) != 0:
+            return False
+        last = self._last_zero_write.get(key)
+        if last is None:
+            return True
+        interval = int(self.settings.get("interval_s", DEFAULT_INTERVAL))
+        settle = int(self.settings.get("feedback_settle_s", DEFAULT_SETTLE))
+        if now - last < max(45, 2 * interval, settle):
+            return False
+        actual = self.per_device.get(key, {}).get("actual")
+        if actual is not None and actual > 100:
+            self._unconfirmed_stop.add(key)
+            return True
+        output = device.get("power_output")
+        state = self.hass.states.get(output) if output else None
+        if state is not None:
+            try:
+                if float(state.state) > 0.000001:
+                    self._unconfirmed_stop.add(key)
+                    return True
+            except (TypeError, ValueError):
+                pass
+        self._unconfirmed_stop.discard(key)
+        return False
+
+    def _reconcile_active_setpoint(self, device: dict, planned_w: int, now: float) -> bool:
+        """Reassert the planned A value after an external HA Number override."""
+        if planned_w <= 0 or device["kind"] == "onoff":
+            return False
+        key = device["id"]
+        interval = int(self.settings.get("interval_s", DEFAULT_INTERVAL))
+        if now - self.last_change.get(key, -1e12) < max(30, 2 * interval):
+            return False
+        entity = device.get("power_output")
+        state = self.hass.states.get(entity) if entity else None
+        if state is None or state.state in ("unknown", "unavailable"):
+            return False
+        try:
+            expected, effective = self._round_command(device, planned_w)
+            current = float(state.state)
+            step = float(state.attributes.get("step", 0.01))
+        except (ValueError, TypeError):
+            return False
+        return (effective == self.last_targets.get(key, 0)
+                and math.isfinite(current)
+                and abs(current - expected) > max(0.001, step * 0.25))
+
+    async def _write(self, d: dict, new_w: int, *, force: bool = False) -> int:
+        """Send reachable device steps, with explicit forced pause sync."""
         ident = d["id"]
         old = self.last_targets.get(ident, 0)
-        if old == new_w:
+        if new_w == 0:
+            target_value, quantized = 0.0, 0
+        elif d["kind"] == "onoff":
+            target_value, quantized = 1.0, int(d["max_w"])
+        else:
+            target_value, quantized = self._round_command(d, new_w)
+        if old == quantized and not force:
             return old
-        for entity_id in (d.get("switch_output"), d.get("power_output")):
+        onoff = d.get("switch_output")
+        power = d.get("power_output")
+        if d["kind"] == "onoff" or (new_w == 0 and onoff):
+            ids = [onoff]
+        elif new_w > 0 and onoff:
+            ids = [power, onoff]
+        else:
+            ids = [power]
+        for entity_id in ids:
             if not entity_id:
                 continue
             entity = self.hass.states.get(entity_id)
@@ -278,8 +353,6 @@ class PowerManager:
                     f"Aktor {entity_id} nicht schreibbereit "
                     f"(HA-Zustand: {observed}); keine Befehle"
                 )
-        onoff = d.get("switch_output")
-        power = d.get("power_output")
         if d["kind"] == "onoff":
             if not onoff:
                 raise ValueError("Ein/Aus-Verbraucher ohne Schaltausgang")
@@ -298,7 +371,7 @@ class PowerManager:
         else:
             if not power:
                 raise ValueError("Leistungssteller ohne Power-Ausgang")
-            value, effective = self._round_command(d, new_w)
+            value, effective = target_value, quantized
             domain = power.split(".", 1)[0]
             if new_w > 0 and onoff:
                 # Set limit before enabling; never enable unlimited load.
@@ -319,6 +392,11 @@ class PowerManager:
         now = time.monotonic()
         self.last_targets[ident] = effective
         self.last_change[ident] = now
+        self._pending_zero_sync.discard(ident)
+        if new_w == 0:
+            self._last_zero_write[ident] = now
+        else:
+            self._unconfirmed_stop.discard(ident)
         if old == 0 and effective > 0:
             self.last_started[ident] = now
         if old > 0 and effective == 0:
@@ -357,8 +435,11 @@ class PowerManager:
 
                 now = time.monotonic()
                 consumers = self._build_consumers(now, preview=True)
+                # Load above our most recent commanded level is not safely
+                # recoverable power. It is already visible in the grid meter.
                 accounted = sum(
-                    (c.actual if c.actual is not None else c.old_target)
+                    min(c.actual, c.old_target) if c.actual is not None
+                    else c.old_target
                     for c in consumers
                 )
                 reserve = float(self.settings.get("reserve_w", DEFAULT_RESERVE))
@@ -390,19 +471,33 @@ class PowerManager:
                 self.values["unallocated"] = round(execution.unallocated, 1)
                 self.cycle_count += 1
 
-                # Commands only on target change; reductions before increases.
-                declines = [d for d in self.devices if desired[d["id"]] <
-                            self.last_targets.get(d["id"], 0)]
-                raises = [d for d in self.devices if desired[d["id"]] >
-                          self.last_targets.get(d["id"], 0)]
-                for d in sorted(declines, key=lambda x: (x["priority"], x["subpriority"]), reverse=True):
+                # Explicit zero synchronisation is necessary on arming,
+                # even when the in-memory target already equals zero.
+                # Always send reductions/stops before increases.
+                stops = [d for d in self.devices if desired[d["id"]] == 0]
+                decreases = [d for d in self.devices if 0 < desired[d["id"]] <
+                             self.last_targets.get(d["id"], 0)]
+                increases = [d for d in self.devices if desired[d["id"]] >
+                             self.last_targets.get(d["id"], 0)]
+                for d in sorted(stops, key=lambda x: (x["priority"], x["subpriority"]), reverse=True):
+                    await self._write(d, 0, force=self._reconcile_zero(d, now))
+                for d in sorted(decreases, key=lambda x: (x["priority"], x["subpriority"]), reverse=True):
                     await self._write(d, desired[d["id"]])
-
-                for d in sorted(raises, key=lambda x: (x["priority"], x["subpriority"])):
+                for d in sorted(increases, key=lambda x: (x["priority"], x["subpriority"])):
                     await self._write(d, desired[d["id"]])
-
-                self.status = "Aktiv" if budget >= 0 else "Leistungsmangel"
-                self.error = ""
+                for d in self.devices:
+                    if (desired[d["id"]] > 0 and
+                            self._reconcile_active_setpoint(d, desired[d["id"]], now)):
+                        await self._write(d, desired[d["id"]], force=True)
+                if self._unconfirmed_stop:
+                    names = ", ".join(d["name"] for d in self.devices
+                                      if d["id"] in self._unconfirmed_stop)
+                    self.status = "Aktorabweichung"
+                    self.error = (f"Abschaltung bei {names} nicht bestätigt; "
+                                  "Istleistung/Aus-Wert und Fremdsteuerung prüfen")
+                else:
+                    self.status = "Aktiv" if budget >= 0 else "Leistungsmangel"
+                    self.error = ""
             except Exception as exc:  # Any failed device command halts this cycle.
                 self.status = "Fehler"
                 self.error = str(exc)
@@ -413,7 +508,8 @@ class PowerManager:
                     c = self.per_device[key]
                     c["target"] = self.last_targets.get(key, 0)
                     c["accounted"] = (
-                        c["actual"] if c["actual"] is not None else c["target"]
+                        min(c["actual"], c["target"])
+                        if c["actual"] is not None else c["target"]
                     )
                 self.running = False
                 self.notify()

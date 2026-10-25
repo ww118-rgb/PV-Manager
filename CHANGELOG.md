@@ -1,3 +1,14 @@
+## 0.2.2b4 — Null-Sollwert aktiv senden, Istlast-Budget absichern
+
+- Beim Einschalten werden Verbraucher mit Sollwert 0 W ausdrücklich über den konfigurierten Pause-/Aus-Befehl synchronisiert; 0 W intern bedeutet nicht automatisch, dass die Hardware gestoppt hat.
+- Istleistung, die höher ist als der zuletzt erfolgreich kommandierte Sollwert, wird **nicht** mehr als wieder frei werdende Leistung zum Leistungsbudget addiert.
+- Weiterlaufende Verbraucher bei 0-W-Vorgabe werden nach einer angemessenen Frist erneut pausiert; die Diagnose meldet „Aktorabweichung“.
+- Watt→Ampere-Rundung: Identische erreichbare Stromstufen werden nicht mehr unnötig jedes Intervall gesendet. Ein manueller Override kann nach einer Schonfrist erneut auf den EMS-Wert gesetzt werden.
+- Prioritäten, Verteilungsformel, Modbusregister, sichere Aus-/Pause-Zuordnung und bestehende Einstellungen bleiben erhalten.
+- Zusätzliche Regressionstests für beide mit Sollwert 0 W weiterladenden Wallboxen und die Ampere-Rundung.
+
+**Sicherheitsinformation:** „Modbus-Schreiben erfolgreich“ ist kein Nachweis, dass die Hardware pausiert. Konfigurierter Aus-/Pause-Befehl muss für jedes Gerät verifiziert sein (bei manchen Wallboxen bedeutet rohe 0 A volle/unbegrenzte Ladung). Bis zur Bestätigung nur am Simulator testen.
+
 ## 0.2.2b3 — Verbraucher-Assistent: Zurück und Stellstufen korrigieren
 
 - In den Formularen des Verbraucher-Assistenten Navigation über Dropdown „Weiter / Zurück“ (HA bietet keinen nativen Zurück-Button für Formulare).
