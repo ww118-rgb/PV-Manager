@@ -398,8 +398,8 @@ class PVOptionsFlow(config_entries.OptionsFlow):
         devices = self._devices()
         if user_input is not None:
             chosen = user_input["consumer"]
-            old = next((dict(d) for d in devices if d["id"] == chosen), None)
-                  if chosen != "new" else None
+            old = (next((dict(d) for d in devices if d["id"] == chosen), None)
+                   if chosen != "new" else None)
             if chosen != "new" and old is None:
                 return self.async_abort(reason="no_devices")
             self._quick_consumer_old = old or {}
