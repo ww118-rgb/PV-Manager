@@ -524,8 +524,7 @@ class RuntimeMonitoringTests(unittest.TestCase):
         self.assertIsNotNone(attrs['last_success'])
         self.assertIsNone(attrs['last_error'])
 
-    def test_fast_grid_import_protection_and_settling(self):
-        """8.29 kW import despite 2.94 kW battery charge must curtail."""
+    def test_single_cycle_curtails_grid_import_without_second_writer(self):
         from datetime import datetime, timezone
         class State:
             def __init__(self,value,unit='W',step=1):
@@ -558,75 +557,61 @@ class RuntimeMonitoringTests(unittest.TestCase):
             data={'grid_entity':'sensor.grid','battery_entity':'sensor.batt',
                   'grid_export_positive':True,'battery_charge_positive':False,
                   'interval_s':15})
-        manager=self.manager_module.PowerManager(
+        mgr=self.manager_module.PowerManager(
             types.SimpleNamespace(states=states,services=services),entry)
-        manager.enable(True)
-        asyncio.run(manager.async_safety_cycle())
-        self.assertEqual(manager.status,'Netzbezug-Schutz')
-        self.assertEqual(manager.values['safety_interventions'],1)
-        self.assertEqual(manager.values['safety_last_import'],8290)
-        self.assertEqual(manager.last_targets['hp'],20000)
-        self.assertLessEqual(sum(manager.last_targets.values()),32110)
+        mgr.enable(True)
+        asyncio.run(mgr.async_cycle())
+        self.assertEqual(mgr.values['budget'],35350)
+        self.assertEqual(mgr.values['allocation_budget'],32410)
+        self.assertEqual(mgr.last_targets['hp'],20000)
+        self.assertLessEqual(sum(mgr.last_targets.values()),32410)
         self.assertEqual(len(services.calls),2)
         self.assertTrue(all(name.startswith('number.wb') for name,_ in services.calls))
         self.assertTrue(all(value < 15 for _,value in services.calls))
-        self.assertEqual(manager.values['safety_curtailment'],
-                         40700-sum(manager.last_targets.values()))
-        previous=dict(manager.last_targets)
-        # The normal 15s cycle must await the actual device/meter reaction.
-        asyncio.run(manager.async_cycle())
-        self.assertEqual(manager.values['budget'],35350)
-        self.assertEqual(manager.values['allocation_budget'],
-                         min(35350, sum(manager.last_targets.values())))
-        self.assertEqual(manager.status,'Netzbezug-Schutz (Wirkung abwarten)')
-        self.assertTrue(all(manager.last_targets[k]<=previous[k] for k in previous))
+        self.assertFalse(hasattr(mgr,'async_safety_cycle'))
 
-    def test_main_controller_does_not_increase_during_small_grid_import(self):
-        """Grid import and charging battery must NOT be interpreted as
-        permission to increase the wallbox, even below the fast alarm."""
-        from datetime import datetime, timezone
+
+    def test_one_watt_grid_import_with_battery_charging_does_not_toggle(self):
+        from datetime import datetime,timezone
         class State:
-            def __init__(self, value, unit='W', step=1):
-                self.state = str(value)
-                self.attributes = {'unit_of_measurement':unit,
-                                   'min':0,'max':20000,'step':step}
-                self.last_updated = datetime.now(timezone.utc)
+            def __init__(self,value,unit='W',step=1):
+                self.state=str(value)
+                self.attributes={'unit_of_measurement':unit,
+                                 'min':0,'max':20000,'step':step}
+                self.last_updated=datetime.now(timezone.utc)
         class States:
             def __init__(self):
-                self.data={'sensor.grid':State(-999),'sensor.batt':State(-6000),
-                           'sensor.wb':State(4830),
-                           'number.wb':State(7,'A')}
-            def get(self,k):return self.data.get(k)
+                self.data={'sensor.grid':State(-1),'sensor.batt':State(-6000),
+                           'sensor.wb':State(4830),'number.wb':State(7,'A')}
+            def get(self,key):return self.data.get(key)
         class Services:
             def __init__(self,states):self.states=states;self.calls=[]
             async def async_call(self,domain,service,data,blocking=False):
                 self.calls.append((data['entity_id'],data['value']))
                 self.states.data[data['entity_id']].state=str(data['value'])
         states=States();services=Services(states)
-        devices=[{'id':'wb','name':'WB','kind':'continuous',
-                  'priority':2,'subpriority':1,'min_w':4140,
-                  'max_w':11040,'power_output':'number.wb',
-                  'actual_entity':'sensor.wb','output_unit':'A',
-                  'phases':3,'voltage':230}]
+        devices=[{'id':'wb','name':'WB','kind':'continuous','priority':2,
+                  'subpriority':1,'min_w':4140,'max_w':11040,
+                  'power_output':'number.wb','actual_entity':'sensor.wb',
+                  'output_unit':'A','phases':3,'voltage':230}]
         entry=types.SimpleNamespace(entry_id='test',
             data={'grid_entity':'sensor.grid','battery_entity':'sensor.batt',
                   'battery_charge_positive':False,'interval_s':15},
             options={'devices':devices})
-        manager=self.manager_module.PowerManager(
+        mgr=self.manager_module.PowerManager(
             types.SimpleNamespace(states=states,services=services),entry)
-        manager.enable(True)
-        asyncio.run(manager.async_cycle())
-        self.assertEqual(manager.values['budget'],9831)
-        self.assertEqual(manager.values['allocation_budget'],4830)
-        self.assertEqual(manager.last_targets['wb'],4830)
+        mgr.enable(True)
+        asyncio.run(mgr.async_cycle())
+        self.assertEqual(mgr.values['budget'],10829)
+        self.assertEqual(mgr.values['allocation_budget'],4830)
+        self.assertEqual(mgr.last_targets['wb'],4830)
         self.assertFalse(services.calls)
-        # A physical two-watt change must not cause a 6-kW budget jump.
-        states.data['sensor.grid'].state='-1001'
-        asyncio.run(manager.async_cycle())
-        self.assertEqual(manager.values['budget'],9829)
-        self.assertEqual(manager.values['allocation_budget'],4830)
-        self.assertEqual(manager.last_targets['wb'],4830)
+        states.data['sensor.grid'].state='-2'
+        asyncio.run(mgr.async_cycle())
+        self.assertEqual(mgr.values['budget'],10828)
+        self.assertEqual(mgr.values['allocation_budget'],4830)
         self.assertFalse(services.calls)
+
 
     def test_main_controller_can_reallocate_priority_while_importing(self):
         """Import cap must not freeze out a newly requesting higher group."""
@@ -667,23 +652,10 @@ class RuntimeMonitoringTests(unittest.TestCase):
         self.assertEqual(manager.last_targets['low'],0)
         self.assertGreater(manager.last_targets['high'],0)
 
-    def test_fast_grid_safety_does_not_write_while_paused(self):
-        class State:
-            state='-8200'
-            attributes={'unit_of_measurement':'W'}
-        class Services:
-            calls=0
-            async def async_call(self,*args,**kwargs):self.calls+=1
-        service=Services()
-        entry=types.SimpleNamespace(entry_id='test',
-            data={'grid_entity':'sensor.grid','interval_s':15},
-            options={'devices':[]})
-        manager=self.manager_module.PowerManager(
-            types.SimpleNamespace(states=types.SimpleNamespace(
-                get=lambda name:State()),services=service),entry)
-        asyncio.run(manager.async_safety_cycle())
-        self.assertEqual(service.calls,0)
-        self.assertEqual(manager.values['safety_interventions'],0)
+    def test_no_parallel_safety_controller_exists(self):
+        self.assertFalse(hasattr(self.manager_module.PowerManager,
+                                 'async_safety_cycle'))
+
 
     def test_modbus_failure_is_visible(self):
         class Unit:
@@ -743,47 +715,46 @@ class RuntimeMonitoringTests(unittest.TestCase):
 
         asyncio.run(scenario())
 
-    def test_manager_time_callback_updates_inputs_when_paused(self):
-        """Regression: EMS timer must trigger without enabling actuator writes."""
-        scheduled = []
-
-        def strict_tracker(hass, action, interval):
-            self.assertTrue(getattr(action, "__ha_callback__", False))
-            scheduled.append(action)
-            return lambda: None
-
+    def test_manager_waits_after_completed_cycle_not_before(self):
+        """The single task must not immediately run a second regulation."""
         class State:
-            def __init__(self, value):
-                self.state = str(value)
-                self.attributes = {"unit_of_measurement": "kW"}
-
+            def __init__(self,value):
+                self.state=str(value)
+                self.attributes={'unit_of_measurement':'kW'}
         async def scenario():
-            grid = State(1.0)
-            hass = types.SimpleNamespace(
+            grid=State(1.0)
+            hass=types.SimpleNamespace(
                 async_create_task=asyncio.create_task,
                 states=types.SimpleNamespace(
-                    get=lambda entity: grid if entity == "sensor.grid" else None
+                    get=lambda entity: grid if entity=='sensor.grid' else None
                 ),
             )
-            entry = types.SimpleNamespace(
-                entry_id="test", options={},
-                data={"grid_entity": "sensor.grid", "interval_s": 15},
-            )
-            manager = self.manager_module.PowerManager(hass, entry)
-            with patch.object(self.manager_module, "async_track_time_interval", strict_tracker):
-                manager.start()
-            scheduled[0](None)
-            await asyncio.sleep(0.01)
-            self.assertEqual(manager.values["grid"], 1000)
-            grid.state = "3.0"
-            scheduled[0](None)
-            await asyncio.sleep(0.01)
-            self.assertEqual(manager.values["grid"], 3000)
-            self.assertEqual(manager.status, "Pausiert")
-            self.assertEqual(manager.cycle_count, 0)
-            manager.stop()
+            entry=types.SimpleNamespace(entry_id='test',options={},
+                 data={'grid_entity':'sensor.grid','interval_s':15})
+            mgr=self.manager_module.PowerManager(hass,entry)
+            mgr.start()
+            try:
+                # The first cycle runs now; subsequent cycles wait after it.
+                for _ in range(50):
+                    if mgr.values['grid']==1000:
+                        break
+                    await asyncio.sleep(0.001)
+                self.assertEqual(mgr.values['grid'],1000)
+                grid.state='3.0'
+                await asyncio.sleep(0.02)
+                self.assertEqual(mgr.values['grid'],1000)
+                self.assertEqual(mgr.status,'Pausiert')
+                self.assertEqual(mgr.cycle_count,0)
+                self.assertTrue(mgr._loop_running)
+                self.assertFalse(hasattr(mgr,'_safety_unsubscribe'))
+            finally:
+                mgr.stop()
+                await asyncio.sleep(0)
+            self.assertFalse(mgr._loop_running)
 
         asyncio.run(scenario())
+
+
 
 
 if __name__ == '__main__':
