@@ -160,3 +160,8 @@ Für reproduzierbare Bugreports hilfreich: Home-Assistant-Version, Gerätetyp, a
 Unter **Entwicklerwerkzeuge → Zustände** die Modbus-Sensor-Entität auswählen und die Attribute `last_attempt`, `last_success`, `read_attempts`, `successful_reads` und `last_error` prüfen. Ein gleichbleibender Zahlenwert kann eine echte gleichbleibende physikalische Messung sein; der Pollingzähler und `last_success` zeigen, ob Abfragen weiterhin funktionieren. Fehlschläge melden die Sensoren als `unavailable` und tragen den Fehler in `last_error` ein.
 
 Der PV-Manager zeigt Netz-, Batterie- und PV-Leistungen nun auch bei ausgeschaltetem Regelschalter an. Die passive Auswertung erzeugt **keine** Aktorbefehle. Die `Regelzyklen` zählen weiterhin nur aktive Regelungszyklen.
+
+
+## Modbus-Schreibaktor: Startzustand
+
+Ab 0.2.1a2 darf der erste Automatik-Befehl an einen eigenen konfigurierten Modbus-Schreibaktor gesendet werden, obwohl sein HA-Zustand nach Neustart noch unknown ist. Voraussetzung sind die gültige Zuordnung zur Integration und ein ausdrücklich konfigurierter Pause-/Aus-Wert. Andere unknown- sowie alle unavailable-Aktoren bleiben gesperrt. Vor einem Test an echten Geräten müssen Aus-/Pause-Semantik und reale Leistung geprüft werden.

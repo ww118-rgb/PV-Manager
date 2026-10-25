@@ -1,3 +1,10 @@
+## 0.2.1a2 — Startzustand des Modbus-Schreibaktors korrigiert
+
+- Eigene, eindeutig registrierte Modbus-Schreibaktoren dürfen beim ersten Regelbefehl den ehrlichen HA-Initialzustand unknown besitzen.
+- Wirklich unavailable, fremde oder fehlerhaft konfigurierte Aktoren bleiben gesperrt.
+- Sicherheitsprüfung der Pause-/Aus-Zuordnung und verständlichere Fehlermeldung.
+- Keine Änderung der Verteilungslogik und bestehenden Konfigurationen.
+
 ## 0.2.1a1 — Universeller Modbus-Schreibadapter (Entwicklungsbranch)
 
 - Native `number`-Entitäten für konfigurierbare FC06/FC16-Schreibregister (16-/32-Bit und FLOAT32).

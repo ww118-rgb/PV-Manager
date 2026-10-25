@@ -10,9 +10,11 @@ from typing import Callable
 
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE
 from .engine import Consumer, distribute
+from .actuator_guard import actuator_can_receive_command
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -252,8 +254,23 @@ class PowerManager:
             if not entity_id:
                 continue
             entity = self.hass.states.get(entity_id)
-            if entity is None or entity.state in ("unknown", "unavailable"):
-                raise ValueError(f"Aktor {entity_id} nicht verfügbar; keine Befehle")
+            # Own write-only Modbus numbers are initially unknown but writable.
+            # Do not relax the guard for unavailable or foreign actuators.
+            registry_entry = (
+                er.async_get(self.hass).async_get(entity_id)
+                if entity is not None and entity.state == "unknown" else None
+            )
+            if not actuator_can_receive_command(
+                entity_id, entity, registry_entry=registry_entry,
+                entry_id=self.entry.entry_id,
+                write_points=self.entry.options.get("modbus_write_points", []),
+                domain=DOMAIN,
+            ):
+                observed = entity.state if entity is not None else "nicht vorhanden"
+                raise ValueError(
+                    f"Aktor {entity_id} nicht schreibbereit "
+                    f"(HA-Zustand: {observed}); keine Befehle"
+                )
         onoff = d.get("switch_output")
         power = d.get("power_output")
         if d["kind"] == "onoff":

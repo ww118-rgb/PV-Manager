@@ -42,6 +42,7 @@ def fake_modules():
         'homeassistant.helpers': module('homeassistant.helpers'),
         'homeassistant.helpers.event': module('homeassistant.helpers.event', async_track_time_interval=lambda *a: lambda: None),
         'homeassistant.helpers.entity': module('homeassistant.helpers.entity', DeviceInfo=FakeDeviceInfo),
+        'homeassistant.helpers.entity_registry': module('homeassistant.helpers.entity_registry', async_get=lambda hass: hass.entity_registry),
         'homeassistant.components': module('homeassistant.components'),
         'homeassistant.components.modbus': module('homeassistant.components.modbus', async_get_unit=lambda *a: None),
         'homeassistant.components.sensor': module('homeassistant.components.sensor', SensorEntity=FakeEntity),
