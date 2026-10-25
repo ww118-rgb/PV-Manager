@@ -1,3 +1,9 @@
+## Regler und Energiemessung ab 0.2.3b1
+
+Für das Verteilungsbudget gilt dieselbe Leistungsbilanz über alle Netzleistungswerte: **Netz (Einspeisung positiv) + Batterie (nach Normierung: Laden positiv) + angerechnete steuerbare Verbraucher − Sicherheitsreserve**. Der alte Umschaltpunkt bei 1 kW Netzbezug ist entfernt; zuvor konnte eine 2-W-Messänderung bei 6 kW Batterieladung einen 6,002-kW-Budgetsprung verursachen. Bei mehr als 150 W Netzbezug verhindert eine zusätzliche Freigabesperre **Erhöhungen der gesamten steuerbaren Last**; die normalen Prioritäten dürfen innerhalb des bestehenden Gesamtwerts umverteilen. Die schnelle 5-Sekunden-Schutzauslösung bei mindestens 1 kW Netzbezug bleibt bestehen und kann nur reduzieren. Nach einem Schutzeingriff sind 30 Sekunden Haltezeit und zwei stabile Hauptzyklen erforderlich. Sensor „Für Steuerung freigegebenes Budget“ zeigt den durch die Netzbezugssperre begrenzten Regelwert.
+
+Der PV-Energiemanager ersetzt keinen netzseitigen Schutz. Für realen Betrieb Funktion und Messwertfrische verifizieren.
+
 ## Schneller Netzbezug-Schutz ab 0.2.2b9
 
 Die Gesamtberechnung bleibt alle 15 Sekunden. Zusätzlich prüft der Manager alle 5 Sekunden die Netzleistung auf erheblichen Bezug (initial mindestens 1000 W) und senkt gegebenenfalls die aktuell steuerbaren Verbraucher nach konfigurierter Priorität ab. Batterie-Laden wird bei großem Netzbezug nicht als unmittelbar frei angenommen. Nach einem Schutz-Eingriff gibt der Manager der echten Messung eine Wirkungsfrist und verhindert sofortiges erneutes Hochregeln. Drei neue Sensoren dokumentieren die Eingriffe. Das ist ein Software-Betaregler, kein Ersatz für hardwareseitige Schutzfunktionen.

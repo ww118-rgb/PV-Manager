@@ -1,3 +1,14 @@
+## 0.2.3b1 — Durchgängige Leistungsbilanz und koordinierte Netzbezugssperre
+
+**Root-Cause-Fix:** Der bisherige Regelkern hat bei Netzbezug von 999 auf 1001 W plötzlich die gesamte positive Batterieladung aus dem Leistungsbudget gestrichen. 2 W Messwertänderung konnten dadurch ein 6-kW-Sollwertspringen auslösen. Dieser Diskontinuitätsfehler ist behoben.
+
+- Das physikalische Budget wird immer aus dem zusammengehörigen Leistungsfluss **Netz + Batterie + bereits angerechnete Verbraucher − Reserve** berechnet. Batterie positiv bedeutet Laden. Der Sprung beim Überschreiten der 1-kW-Schutzschwelle ist entfernt.
+- **Separate Kontrollentscheidung:** Bei aktuellem Netzbezug über 150 W darf das normale Regelwerk die **Summe** der bereits angeforderten Verbraucherleistung nicht erhöhen, kann diese Leistung aber nach Prioritäten neu verteilen. Der schnelle Netzbezugsschutz reduziert bei mindestens 1000 W weiterhin alle fünf Sekunden.
+- Nach einem schnellen Eingriff wird das Wieder-Hochregeln erst nach Ablauf der vorhandenen 30-s-Haltezeit **und** zwei stabilen Beobachtungen freigegeben.
+- Neuer Diagnosesensor „Für Steuerung freigegebenes Budget“, um physikalisches und kontrolltechnisch freigegebenes Budget transparent zu unterscheiden.
+- Tests an der kritischen 999-/1001-W-Schwelle, bei gleichzeitig ladender Batterie und Netzbezug, Prioritätswechsel und schneller Sicherheitsreduzierung. Bestehende Universalität und Modbus-Geräteübersetzungen bleiben erhalten.
+- Die Änderung ist keine Garantie für perfekte Nulleinspeisung bei schneller PV-/Hauslaständerung. Datenalter und Reaktionsverhalten der tatsächlichen Batterie bleiben für den Simulator-Praxistest relevant.
+
 ## 0.2.2b9 — Netzbezug-Schutz bei abrupten PV-Schwankungen
 
 - Zusätzliche Sicherheitsprüfung alle 5 Sekunden, unabhängig vom normalen 15-Sekunden-Gesamtregler. Ab 1.000 W gemessenem Netzbezug werden nur vorhandene steuerbare Lasten reduziert, niemals erhöht.

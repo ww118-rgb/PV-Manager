@@ -16,7 +16,9 @@ from .const import DOMAIN, DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE
 from .engine import Consumer, distribute
 from .hysteresis import stabilize
 from .ramp import limit_increases
-from .grid_safety import safety_targets, budget_with_grid_priority
+from .grid_safety import (
+    safety_targets, budget_with_grid_priority, cap_budget_on_import,
+)
 from .actuator_guard import actuator_can_receive_command
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,6 +39,7 @@ class PowerManager:
         self.cycle_count = 0
         self.values: dict[str, float | str | None] = {
             "grid": None, "battery": 0, "pv": None, "budget": None,
+            "allocation_budget": None,
             "assigned": 0, "unallocated": 0, "deficit": 0,
             "ramp_delayed": 0, "safety_interventions": 0,
             "safety_last_import": 0, "safety_curtailment": 0,
@@ -60,6 +63,7 @@ class PowerManager:
         self._safety_settle_until = 0.0
         self._safety_precommand_targets: dict[str, int] = {}
         self._safety_last_import = 0.0
+        self._recovery_confirm = 0
         self._lock = asyncio.Lock()
         self._bootstrapped = False
         # Zero desired is not proof of an executed device pause.
@@ -130,12 +134,14 @@ class PowerManager:
                 self._safety_hold_until = 0.0
                 self._safety_settle_until = 0.0
                 self._safety_precommand_targets.clear()
+                self._recovery_confirm = 0
             elif not value:
                 self._pending_zero_sync.clear()
                 self._shortage_cycles = 0
                 self._safety_hold_until = 0.0
                 self._safety_settle_until = 0.0
                 self._safety_precommand_targets.clear()
+                self._recovery_confirm = 0
             self.enabled = value
             self.status = "Bereit" if value else "Pausiert"
             self.error = ""
@@ -495,6 +501,7 @@ class PowerManager:
                 self._safety_hold_until = now + max(30, 2 * int(
                     self.settings.get("interval_s", DEFAULT_INTERVAL)))
                 self._shortage_cycles = 0
+                self._recovery_confirm = 0
                 self.values["safety_last_import"] = int(round(-grid))
                 self.values["safety_curtailment"] = sum(
                     max(0, current.get(k,0) - self.last_targets.get(k,0))
@@ -535,7 +542,8 @@ class PowerManager:
                 # Inputs are exposed even when live regulation is switched off.
                 self.values.update({"grid": grid, "battery": battery, "pv": pv})
                 if grid is None or battery is None:
-                    self.values.update({"budget": None, "deficit": None, "ramp_delayed": 0})
+                    self.values.update({"budget": None, "allocation_budget": None,
+                                    "deficit": None, "ramp_delayed": 0})
                     self.status = "Messfehler" if self.enabled else "Pausiert (Messfehler)"
                     self.error = "Netz- oder Batteriesensor fehlt/ist ungültig; keine Schreibbefehle"
                     return
@@ -562,8 +570,18 @@ class PowerManager:
                     grid, battery, accounted, reserve,
                     urgent_import_w=float(self.settings.get("safety_import_w", 1000)),
                 )
+                # A physically continuous budget and a separate *permission*
+                # to raise controllable load prevent contradictory control
+                # decisions near a 1-kW import alarm. Priority reallocation
+                # remains possible within the already commanded total.
+                old_total = sum(self.last_targets.values())
+                allocation_budget = cap_budget_on_import(
+                    grid, budget, old_total, deadband_w=150,
+                )
                 self.values.update({
-                    "budget": round(budget, 1), "deficit": max(0.0, -budget),
+                    "budget": round(budget, 1),
+                    "allocation_budget": round(allocation_budget, 1),
+                    "deficit": max(0.0, -budget),
                 })
                 if not self.enabled:
                     # Observation only: never calculate or apply new actuator
@@ -579,7 +597,7 @@ class PowerManager:
                     self.cycle_count += 1
                     return
 
-                preview = distribute(budget, consumers)
+                preview = distribute(allocation_budget, consumers)
                 for d in self.devices:
                     key = d["id"]
                     desired = preview.targets[key]
@@ -590,15 +608,24 @@ class PowerManager:
                         self.request_since.pop(key, None)
 
                 live_consumers = self._build_consumers(now, preview=False)
-                execution = distribute(budget, live_consumers)
+                execution = distribute(allocation_budget, live_consumers)
                 decision = stabilize(
-                    budget, live_consumers, self.last_targets, self._shortage_cycles,
+                    allocation_budget, live_consumers,
+                    self.last_targets, self._shortage_cycles,
                 )
                 self._shortage_cycles = decision.shortage_cycles
                 desired = limit_increases(
                     decision.targets, live_consumers, self.last_targets,
                 )
-                if now < self._safety_hold_until:
+                # Recovery after emergency curtailment needs two stable
+                # regular observations, not merely the expiry of a timer.
+                if self._safety_hold_until:
+                    if grid < -150:
+                        self._recovery_confirm = 0
+                    else:
+                        self._recovery_confirm = min(2, self._recovery_confirm + 1)
+                if (now < self._safety_hold_until
+                        or (self._safety_hold_until and self._recovery_confirm < 2)):
                     desired = {key: min(watts, self.last_targets.get(key, 0))
                                for key, watts in desired.items()}
                 self.values["ramp_delayed"] = sum(
@@ -633,7 +660,7 @@ class PowerManager:
                                          for d in self.devices)
                 self.values["assigned"] = effective_assigned
                 self.values["unallocated"] = round(
-                    max(0.0, budget - effective_assigned), 1)
+                    max(0.0, allocation_budget - effective_assigned), 1)
                 if self._unconfirmed_stop:
                     names = ", ".join(d["name"] for d in self.devices
                                       if d["id"] in self._unconfirmed_stop)

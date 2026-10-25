@@ -13,6 +13,7 @@ GLOBAL = {
     "battery": ("Batterieleistung", UnitOfPower.WATT),
     "pv": ("PV-Erzeugung", UnitOfPower.WATT),
     "budget": ("Verteilungsbudget", UnitOfPower.WATT),
+    "allocation_budget": ("Für Steuerung freigegebenes Budget", UnitOfPower.WATT),
     "assigned": ("Zugewiesene Leistung", UnitOfPower.WATT),
     "unallocated": ("Nicht weitergereichte Leistung", UnitOfPower.WATT),
     "ramp_delayed": ("Wegen Anstiegsbegrenzung zurückgehalten", UnitOfPower.WATT),
