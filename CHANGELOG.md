@@ -1,3 +1,12 @@
+## 0.2.2b8 — Begrenztes Hochregeln bei schnell wechselnder PV-Leistung
+
+- Grobe Gerätestufen ab 300 W: pro normalem Regelzyklus maximal 2 aktive Stufen **nach oben**; Ein-/Aus-Schaltungen dürfen immer auf die konfigurierte Mindestleistung beginnen.
+- Herunterregeln, Pausieren und höherpriorisierte Verdrängung sind **nicht** gebremst.
+- Geräte mit feinen Stellstufen oder ohne stufenweise Stellgröße behalten das bisherige Verhalten.
+- Neuer Diagnosesensor „Wegen Anstiegsbegrenzung zurückgehalten“ zeigt den Unterschied zwischen berechnetem Plan und im aktuellen Zyklus freigegebenen Sollwerten.
+- Dies ist eine konservative Teststrategie und keine Prognose: abrupte PV-Verluste schneller als Messung/Regelung können weiterhin kurz Netzbezug auslösen.
+- Es werden keine Hersteller-/Simulatoradressen, Batterievoreinstellungen oder Wallbox-Ampere-Grenzen geändert.
+
 ## 0.2.2b7 — Hysterese für stufenweise geregelte Verbraucher
 
 - 100 W zusätzliche Reserve vor dem Hochregeln in die nächste verfügbare Stufe.

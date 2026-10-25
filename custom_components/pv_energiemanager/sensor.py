@@ -15,6 +15,7 @@ GLOBAL = {
     "budget": ("Verteilungsbudget", UnitOfPower.WATT),
     "assigned": ("Zugewiesene Leistung", UnitOfPower.WATT),
     "unallocated": ("Nicht weitergereichte Leistung", UnitOfPower.WATT),
+    "ramp_delayed": ("Wegen Anstiegsbegrenzung zurückgehalten", UnitOfPower.WATT),
     "deficit": ("Leistungsdefizit", UnitOfPower.WATT),
     "status": ("Regelstatus", None),
     "cycle_count": ("Regelzyklen", None),

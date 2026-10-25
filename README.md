@@ -1,3 +1,7 @@
+## Testbetrieb mit schnell schwankender PV-Leistung (ab 0.2.2b8)
+
+Für Geräte mit groben Stellstufen (mindestens 300 W pro Stellstufe) ist die Hochregelung zunächst auf **zwei Stufen pro EMS-Regelzyklus** begrenzt. Reduzieren und Abschalten bleiben unmittelbar. Die Begrenzung wird als eigener Sensor „Wegen Anstiegsbegrenzung zurückgehalten“ sichtbar. Bei dreiphasigen 230-V-Wallboxen mit 1-A-Schritten entspricht dies höchstens +2 A je Zyklus. 16 A entsprechen 11.040 W: Sowohl die Verbraucher-Maximalleistung als auch die Number-Entitätsobergrenze müssen 16 A ermöglichen. Die 5-s-Sensorabfragen sind von der Standard-Regelperiode (15 s) unabhängig. Die Begrenzung ersetzt keinen schnellen netzseitigen Schutz für reale Geräte.
+
 ## Ab 0.2.2b4: Abgleich zwischen Sollwert, Ampere und tatsächlicher Last
 
 Intern plant der Energiemanager in Watt. Ein Verbraucher mit Ampere-Ausgang wird mit konfigurierter Spannung/Phasenzahl in eine gültige, nicht über dem Leistungsbudget liegende Stromstufe umgerechnet. Nach dem expliziten Aktivieren der Regelung erhalten Verbraucher mit geplantem 0-W-Sollwert einen tatsächlichen Pause-/Aus-Befehl – **ausschließlich** den gerätespezifisch konfigurierten. Der 0-W-Sollwert ist kein physikalischer Wirknachweis. Eine unerwartet weiterlaufende Wallbox wird nicht als vermeintlich wieder frei gewordener Überschuss zum Budget addiert; eine dauerhafte Abweichung erscheint als „Aktorabweichung“. Ohne unabhängigen Istleistungssensor bleibt die tatsächliche Leistungsaufnahme unbestätigt.

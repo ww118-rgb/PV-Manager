@@ -15,6 +15,7 @@ from homeassistant.helpers import entity_registry as er
 from .const import DOMAIN, DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE
 from .engine import Consumer, distribute
 from .hysteresis import stabilize
+from .ramp import limit_increases
 from .actuator_guard import actuator_can_receive_command
 
 _LOGGER = logging.getLogger(__name__)
@@ -36,6 +37,7 @@ class PowerManager:
         self.values: dict[str, float | str | None] = {
             "grid": None, "battery": 0, "pv": None, "budget": None,
             "assigned": 0, "unallocated": 0, "deficit": 0,
+            "ramp_delayed": 0,
         }
         self.per_device: dict[str, dict] = {
             d["id"]: {"target": 0, "actual": None, "demand": False, "accounted": 0}
@@ -447,7 +449,7 @@ class PowerManager:
                 # Inputs are exposed even when live regulation is switched off.
                 self.values.update({"grid": grid, "battery": battery, "pv": pv})
                 if grid is None or battery is None:
-                    self.values.update({"budget": None, "deficit": None})
+                    self.values.update({"budget": None, "deficit": None, "ramp_delayed": 0})
                     self.status = "Messfehler" if self.enabled else "Pausiert (Messfehler)"
                     self.error = "Netz- oder Batteriesensor fehlt/ist ungültig; keine Schreibbefehle"
                     return
@@ -471,6 +473,7 @@ class PowerManager:
                     # commands, and never touch activation/delay bookkeeping.
                     self.status = "Pausiert"
                     self.error = ""
+                    self.values["ramp_delayed"] = 0
                     return
 
                 preview = distribute(budget, consumers)
@@ -489,7 +492,13 @@ class PowerManager:
                     budget, live_consumers, self.last_targets, self._shortage_cycles,
                 )
                 self._shortage_cycles = decision.shortage_cycles
-                desired = decision.targets
+                desired = limit_increases(
+                    decision.targets, live_consumers, self.last_targets,
+                )
+                self.values["ramp_delayed"] = sum(
+                    max(0, decision.targets[key] - desired[key])
+                    for key in desired
+                )
                 self.group_records = execution.group_records
                 self.cycle_count += 1
 

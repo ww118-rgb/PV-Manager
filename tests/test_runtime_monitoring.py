@@ -292,14 +292,17 @@ class RuntimeMonitoringTests(unittest.TestCase):
         manager = self.manager_module.PowerManager(
             types.SimpleNamespace(states=states, services=services), entry)
         manager.enable(True)
+        # Ramp from 6 A towards 14 A as new electrical load takes effect.
+        for current_amp in (6, 8, 10, 12, 14):
+            asyncio.run(manager.async_cycle())
+            self.assertEqual(manager.last_targets["wb"], current_amp * 690)
+            self.assertEqual(services.calls[-1], float(current_amp))
+            states.data["sensor.grid"].state = str(10000 - current_amp * 690)
         asyncio.run(manager.async_cycle())
-        self.assertEqual(services.calls, [14.0])
-        self.assertEqual(manager.last_targets["wb"], 9660)
+        self.assertEqual(services.calls, [6.0, 8.0, 10.0, 12.0, 14.0])
         self.assertEqual(manager.values["assigned"], 9660)
         self.assertEqual(manager.values["unallocated"], 340)
-        states.data["sensor.grid"].state = "340"
-        asyncio.run(manager.async_cycle())
-        self.assertEqual(services.calls, [14.0])
+        self.assertEqual(manager.values["ramp_delayed"], 0)
 
     def test_manual_ampere_override_is_corrected(self):
         class State:
@@ -332,12 +335,12 @@ class RuntimeMonitoringTests(unittest.TestCase):
             types.SimpleNamespace(states=states, services=services), entry)
         manager.enable(True)
         asyncio.run(manager.async_cycle())
-        self.assertEqual(services.calls, [7.0])
-        states.data["sensor.grid"].state = "170"
+        self.assertEqual(services.calls, [6.0])
+        states.data["sensor.grid"].state = "860"
         states.data["number.wb"].state = "16"
         manager.last_change["wb"] -= 60
         asyncio.run(manager.async_cycle())
-        self.assertEqual(services.calls, [7.0, 7.0])
+        self.assertEqual(services.calls, [6.0, 7.0])
 
     def test_battery_charging_surplus_does_not_toggle_two_wallboxes(self):
         """With correct negative-on-charge sensor sign, 7 A -> 8 A settles."""
@@ -442,6 +445,56 @@ class RuntimeMonitoringTests(unittest.TestCase):
         self.assertGreater(plan.targets['high'],0)
         stopped = c('low',2,1,'continuous',1000,5000,requested=False,old_target=4000)
         self.assertEqual(self.manager_module.stabilize(3999,[stopped],{'low':4000},0).targets['low'],0)
+
+    def test_fast_pv_drop_after_ramped_charge_increase(self):
+        """Rapid PV drop cannot follow a full 8 A -> 16 A jump in one cycle."""
+        from datetime import datetime, timezone
+        class State:
+            def __init__(self, value, unit='W', step=1):
+                self.state=str(value)
+                self.attributes={'unit_of_measurement':unit,'min':0,
+                                 'max':20000,'step':step}
+                self.last_updated=datetime.now(timezone.utc)
+        class States:
+            def __init__(self):
+                self.data={'sensor.grid':State(0), 'sensor.batt':State(-13080),
+                           'sensor.wb1':State(5520),'sensor.wb2':State(5520),
+                           'number.hp':State(20000),
+                           'number.wb1':State(8,'A'), 'number.wb2':State(8,'A')}
+            def get(self,key):return self.data.get(key)
+        class Services:
+            def __init__(self, states):self.states=states;self.calls=[]
+            async def async_call(self,domain,service,data,blocking=False):
+                self.calls.append((data['entity_id'],data['value']))
+                self.states.data[data['entity_id']].state=str(data['value'])
+        states=States(); services=Services(states)
+        devices=[{'id':'hp','name':'WP', 'kind':'continuous',
+                  'priority':1, 'subpriority':1, 'min_w':5000,'max_w':20000,
+                  'power_output':'number.hp','output_unit':'W'}]
+        devices += [{'id':f'wb{i}','name':f'WB{i}', 'kind':'continuous',
+                     'priority':2, 'subpriority':i, 'min_w':4140,'max_w':11040,
+                     'power_output':f'number.wb{i}',
+                     'actual_entity':f'sensor.wb{i}',
+                     'output_unit':'A','phases':3,'voltage':230}
+                    for i in (1,2)]
+        entry=types.SimpleNamespace(entry_id='test', data={
+            'grid_entity':'sensor.grid','battery_entity':'sensor.batt',
+            'battery_charge_positive':False,'interval_s':15,
+        },options={'devices':devices})
+        manager=self.manager_module.PowerManager(
+            types.SimpleNamespace(states=states,services=services),entry)
+        manager.enable(True)
+        asyncio.run(manager.async_cycle())
+        self.assertEqual([x for x in services.calls if x[0].startswith('number.wb')],
+                         [('number.wb1',10.0),('number.wb2',10.0)])
+        self.assertEqual(manager.values['ramp_delayed'],8280)
+        for i in (1,2):states.data[f'sensor.wb{i}'].state='6900'
+        states.data['sensor.batt'].state='-2000'
+        asyncio.run(manager.async_cycle())
+        self.assertEqual(manager.values['budget'],35800)
+        self.assertEqual(manager.last_targets['wb1'],7590)
+        self.assertEqual(manager.last_targets['wb2'],7590)
+        self.assertEqual(manager.values['ramp_delayed'],0)
 
     def test_invalid_grid_clears_old_budget_while_paused(self):
         class States:
