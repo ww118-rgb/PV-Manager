@@ -257,8 +257,8 @@ class PVOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["quick_system_sources", "quick_consumer_choose",
-                          "quick_data_points", "quick_connections",
+            menu_options=["quick_site_form", "quick_consumer_choose",
+                          "quick_connections", "quick_data_points",
                           "quick_diagnostics", "advanced"],
         )
 
@@ -267,25 +267,24 @@ class PVOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_menu(
             step_id="quick_modbus_setup",
             menu_options=["quick_connections", "quick_read_point_choose",
-                          "quick_system_sources"],
+                          "quick_site_form"],
         )
 
     async def async_step_quick_data_points(self, user_input=None):
-        """Manage read and write points from one comprehensible location."""
-        choices = ["quick_read_point_choose"]
-        if self._connections():
-            choices.append("modbus_write")
-        if self._write_points():
-            choices.append("modbus_edit_write")
-            choices.append("modbus_remove_write")
-        return self.async_show_menu(step_id="quick_data_points", menu_options=choices)
+        """Three symmetric actions instead of many unrelated CRUD entries."""
+        return self.async_show_menu(
+            step_id="quick_data_points",
+            menu_options=["quick_read_point_choose", "quick_write_point_choose",
+                          "quick_delete_point"],
+        )
 
     async def async_step_quick_connections(self, user_input=None):
-        """Connections are a separate object, not fifteen advanced actions."""
-        choices = ["modbus_connection"]
+        """A connection precedes its data points."""
+        choices = ["quick_connection_choose"]
         if self._connections():
-            choices.extend(["modbus_edit_connection", "modbus_remove_connection"])
-        return self.async_show_menu(step_id="quick_connections", menu_options=choices)
+            choices.append("modbus_remove_connection")
+        return self.async_show_menu(step_id="quick_connections",
+                                    menu_options=choices)
 
     async def async_step_advanced_consumers(self, user_input=None):
         return self.async_show_menu(
@@ -293,105 +292,87 @@ class PVOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_advanced(self, user_input=None):
-        """Specialist choices are grouped instead of overwhelming the user."""
         return self.async_show_menu(
-            step_id="advanced", menu_options=[
-                "general", "advanced_consumers", "quick_connections",
-                "quick_data_points", "modbus_test_register",
-                "modbus_remove_register",
-            ],
+            step_id="advanced",
+            menu_options=["quick_site_form", "advanced_consumers",
+                          "quick_connections", "quick_data_points"],
         )
 
     # --- Guided, non-destructive setup (all changes saved only at the end) ---
 
-    async def async_step_quick_system_sources(self, user_input=None):
-        merged = {**self.config_entry.data, **self.config_entry.options}
+    @staticmethod
+    def _site_schema(values):
+        """Single native sectioned form for all plant parameters."""
+        def source(key):
+            return (vol.Optional(key, description={"suggested_value": values[key]})
+                    if values.get(key) else vol.Optional(key))
+        return vol.Schema({
+            vol.Required("sources"): section(vol.Schema({
+                source("grid_entity"): _entity(["sensor", "number", "input_number"]),
+                source("pv_entity"): _entity(["sensor", "number", "input_number"]),
+                source("battery_entity"): _entity(["sensor", "number", "input_number"]),
+            }), {"collapsed": False}),
+            vol.Required("directions"): section(vol.Schema({
+                vol.Required("grid_export_positive",
+                             default=values.get("grid_export_positive", True)):
+                    selector.BooleanSelector(),
+                vol.Required("battery_charge_positive",
+                             default=values.get("battery_charge_positive", True)):
+                    selector.BooleanSelector(),
+            }), {"collapsed": True}),
+            vol.Required("regulation"): section(vol.Schema({
+                vol.Required("interval_s", default=values.get(
+                    "interval_s", DEFAULT_INTERVAL)): _num(5, 300),
+                vol.Required("reserve_w", default=values.get(
+                    "reserve_w", DEFAULT_RESERVE)): _num(0, 10000, 10),
+                vol.Required("feedback_settle_s", default=values.get(
+                    "feedback_settle_s", DEFAULT_SETTLE)): _num(0, 180),
+            }), {"collapsed": True}),
+            vol.Required("confirm", default=False): selector.BooleanSelector(),
+        })
+
+    async def async_step_quick_site_form(self, user_input=None):
+        """Review sources, directions and tuning together, then save once."""
+        if not hasattr(self, "_site_draft"):
+            self._site_draft = {**self.config_entry.data,
+                                **self.config_entry.options}
+        errors = {}
         if user_input is not None:
-            self._quick_sources = {
-                "grid_entity": user_input["grid_entity"],
-                "pv_entity": user_input.get("pv_entity"),
-                "battery_entity": user_input.get("battery_entity"),
-            }
-            return await self.async_step_quick_system_direction()
+            pending = dict(self._site_draft)
+            for key in ("sources", "directions", "regulation"):
+                pending.update(user_input.get(key, {}))
+            if "sources" in user_input:
+                for field in ("grid_entity", "battery_entity", "pv_entity"):
+                    pending[field] = user_input["sources"].get(field)
+            self._site_draft = pending
+            if not pending.get("grid_entity"):
+                errors["base"] = "missing_grid_sensor"
+            elif not user_input.get("confirm"):
+                errors["base"] = "confirm_required"
+            else:
+                options = dict(self.config_entry.options)
+                options.update(pending)
+                return self.async_create_entry(title="", data=options)
+        name = self._site_draft.get("grid_entity")
+        raw = source_power_w(self.hass.states.get(name)) if name else None
+        preview = signed_grid_preview(raw, self._site_draft.get(
+            "grid_export_positive", True))
         return self.async_show_form(
-            step_id="quick_system_sources",
-            data_schema=vol.Schema({
-                vol.Required("grid_entity", default=merged.get("grid_entity", "")):
-                    _entity(["sensor", "number", "input_number"]),
-                vol.Optional("pv_entity", description={"suggested_value": merged.get("pv_entity")})
-                    if merged.get("pv_entity") else vol.Optional("pv_entity"):
-                    _entity(["sensor", "number", "input_number"]),
-                vol.Optional("battery_entity", description={"suggested_value": merged.get("battery_entity")})
-                    if merged.get("battery_entity") else vol.Optional("battery_entity"):
-                    _entity(["sensor", "number", "input_number"]),
-            }),
+            step_id="quick_site_form",
+            data_schema=self._site_schema(self._site_draft),
+            errors=errors,
+            description_placeholders={"preview": preview},
         )
+
+    # Compatibility routes for older step references.
+    async def async_step_quick_system_sources(self, user_input=None):
+        return await self.async_step_quick_site_form(user_input)
 
     async def async_step_quick_system_direction(self, user_input=None):
-        merged = {**self.config_entry.data, **self.config_entry.options}
-        if user_input is not None:
-            self._quick_system_opts = {
-                **self._quick_sources,
-                "grid_export_positive": user_input["grid_sign"] == "plus_export",
-                "battery_charge_positive": user_input["battery_sign"] == "plus_charge",
-                "interval_s": int(user_input["interval_s"]),
-                "reserve_w": int(user_input["reserve_w"]),
-            }
-            return await self.async_step_quick_system_review()
-        return self.async_show_form(
-            step_id="quick_system_direction",
-            data_schema=vol.Schema({
-                vol.Required("grid_sign", default=("plus_export" if merged.get("grid_export_positive", True) else "minus_export")):
-                    selector.SelectSelector(selector.SelectSelectorConfig(
-                        options=[
-                            selector.SelectOptionDict(value="plus_export", label="Positiver Wert = Einspeisung"),
-                            selector.SelectOptionDict(value="minus_export", label="Negativer Wert = Einspeisung"),
-                        ], mode="dropdown")),
-                vol.Required("battery_sign", default=("plus_charge" if merged.get("battery_charge_positive", True) else "minus_charge")):
-                    selector.SelectSelector(selector.SelectSelectorConfig(
-                        options=[
-                            selector.SelectOptionDict(value="plus_charge", label="Positiver Wert = Laden"),
-                            selector.SelectOptionDict(value="minus_charge", label="Negativer Wert = Laden"),
-                        ], mode="dropdown")),
-                vol.Required("interval_s", default=merged.get("interval_s", DEFAULT_INTERVAL)):
-                    _num(5, 300),
-                vol.Required("reserve_w", default=merged.get("reserve_w", DEFAULT_RESERVE)):
-                    _num(0, 10000, 10),
-            }),
-        )
+        return await self.async_step_quick_site_form(user_input)
 
     async def async_step_quick_system_review(self, user_input=None):
-        cfg = self._quick_system_opts
-        if user_input is not None:
-            if user_input.get("confirm"):
-                options = dict(self.config_entry.options)
-                options.update(cfg)
-                return self.async_create_entry(title="", data=options)
-            return self.async_show_form(
-                step_id="quick_system_review", data_schema=vol.Schema({
-                    vol.Required("confirm", default=False): selector.BooleanSelector()}),
-                errors={"base": "confirm_required"},
-                description_placeholders=self._quick_system_preview(),
-            )
-        return self.async_show_form(
-            step_id="quick_system_review",
-            data_schema=vol.Schema({
-                vol.Required("confirm", default=False): selector.BooleanSelector(),
-            }),
-            description_placeholders=self._quick_system_preview(),
-        )
-
-    def _quick_system_preview(self):
-        cfg = self._quick_system_opts
-        raw = source_power_w(self.hass.states.get(cfg["grid_entity"]))
-        net = signed_grid_preview(raw, cfg["grid_export_positive"])
-        battery = cfg.get("battery_entity") or "Kein Sensor (0 W angenommen)"
-        pv = cfg.get("pv_entity") or "Kein Sensor"
-        return {
-            "net": net, "grid": cfg["grid_entity"],
-            "battery": battery, "pv": pv,
-            "interval": str(cfg["interval_s"]), "reserve": str(cfg["reserve_w"]),
-        }
+        return await self.async_step_quick_site_form(user_input)
 
     async def async_step_quick_consumer_choose(self, user_input=None):
         """New and existing consumers use exactly the same editable form."""
@@ -614,15 +595,7 @@ class PVOptionsFlow(config_entries.OptionsFlow):
         )
 
     async def async_step_general(self, user_input=None):
-        if user_input is not None:
-            # Persist explicit None for cleared optional selectors.  Otherwise
-            # an entity from entry.data would reappear when data/options merge.
-            options = dict(self.config_entry.options)
-            options.update({"battery_entity": None, "pv_entity": None})
-            options.update(user_input)
-            return self.async_create_entry(title="", data=options)
-        merged = {**self.config_entry.data, **self.config_entry.options}
-        return self.async_show_form(step_id="general", data_schema=_global_schema(merged))
+        return await self.async_step_quick_site_form(user_input)
 
     async def async_step_add(self, user_input=None):
         errors = {}
@@ -712,6 +685,155 @@ class PVOptionsFlow(config_entries.OptionsFlow):
     def _write_points(self):
         return list(self.config_entry.options.get("modbus_write_points", []))
 
+    async def async_step_quick_connection_choose(self, user_input=None):
+        """Create/edit connections via the same sectioned form."""
+        if user_input is not None:
+            ident = user_input["connection_id"]
+            old = next((dict(c) for c in self._connections()
+                        if c["id"] == ident), None) if ident != "new" else None
+            if ident != "new" and old is None:
+                return self.async_abort(reason="no_modbus_connections")
+            self._conn_old = old or {}
+            self._conn_draft = dict(self._conn_old)
+            return await self.async_step_quick_connection_form()
+        options = [selector.SelectOptionDict(value="new", label="Neue Verbindung erstellen")]
+        options.extend(selector.SelectOptionDict(
+            value=c["id"], label=c["name"] + " bearbeiten") for c in self._connections())
+        return self.async_show_form(step_id="quick_connection_choose",
+            data_schema=vol.Schema({
+                vol.Required("connection_id", default="new"):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=options, mode="dropdown"))}))
+
+    async def async_step_quick_connection_form(self, user_input=None):
+        if not hasattr(self, "_conn_old"):
+            return await self.async_step_quick_connection_choose()
+        errors = {}
+        if user_input is not None:
+            draft = dict(self._conn_draft)
+            draft.update(user_input.get("device", {}))
+            self._conn_draft = draft
+            new, error = validate_connection(draft)
+            if error:
+                errors["base"] = error
+            elif any(c["id"] != self._conn_old.get("id") and
+                     (c["host"].lower(), c["port"], c["unit_id"]) ==
+                     (new["host"].lower(), new["port"], new["unit_id"])
+                     for c in self._connections()):
+                errors["base"] = "duplicate_endpoint"
+            elif not user_input.get("confirm"):
+                errors["base"] = "confirm_required"
+            else:
+                new["id"] = self._conn_old.get("id", uuid4().hex[:12])
+                opts = dict(self.config_entry.options)
+                opts["modbus_connections"] = ([
+                    new if c["id"] == new["id"] else c for c in self._connections()]
+                    if self._conn_old else [*self._connections(), new])
+                return self.async_create_entry(title="", data=opts)
+        base = _modbus_connection_schema(self._conn_draft)
+        return self.async_show_form(step_id="quick_connection_form",
+            data_schema=vol.Schema({
+                vol.Required("device"): section(base, {"collapsed": False}),
+                vol.Required("confirm", default=False): selector.BooleanSelector(),
+            }), errors=errors)
+
+    async def async_step_quick_write_point_choose(self, user_input=None):
+        if not self._connections():
+            return self.async_show_menu(step_id="quick_write_point_choose",
+                                        menu_options=["quick_connection_choose"])
+        if user_input is not None:
+            ident = user_input["write_id"]
+            old = next((dict(p) for p in self._write_points()
+                        if p["id"] == ident), None) if ident != "new" else None
+            if ident != "new" and old is None:
+                return self.async_abort(reason="no_modbus_write_points")
+            self._write_old = old or {}
+            self._write_draft = dict(self._write_old)
+            return await self.async_step_quick_write_point_form()
+        options = [selector.SelectOptionDict(value="new",
+                         label="Neuen Modbus-Schreibaktor erstellen")]
+        options.extend(selector.SelectOptionDict(
+            value=p["id"], label=p["name"] + " bearbeiten") for p in self._write_points())
+        return self.async_show_form(step_id="quick_write_point_choose",
+            data_schema=vol.Schema({
+                vol.Required("write_id", default="new"):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=options, mode="dropdown"))}))
+
+    async def async_step_quick_write_point_form(self, user_input=None):
+        """Only validates/configures a write actor; no write-test side effect."""
+        if not hasattr(self, "_write_old"):
+            return await self.async_step_quick_write_point_choose()
+        errors = {}
+        if user_input is not None:
+            draft = dict(self._write_draft)
+            for group in ("addressing", "limits", "encoding"):
+                draft.update(user_input.get(group, {}))
+            self._write_draft = draft
+            point, error = validate_write_point(
+                draft, {c["id"] for c in self._connections()})
+            if error:
+                errors["base"] = error
+            elif not user_input.get("confirm"):
+                errors["base"] = "confirm_required"
+            else:
+                point["id"] = self._write_old.get("id", uuid4().hex[:12])
+                opts = dict(self.config_entry.options)
+                opts["modbus_write_points"] = ([
+                    point if p["id"] == point["id"] else p
+                    for p in self._write_points()] if self._write_old
+                    else [*self._write_points(), point])
+                return self.async_create_entry(title="", data=opts)
+        fields = _modbus_write_schema(self._connections(), self._write_draft)
+        fields = dict(fields.schema if hasattr(fields, "schema") else fields)
+        groups = {
+            "addressing": ("connection_id", "name", "address",
+                           "function_code", "data_type", "byte_order"),
+            "limits": ("unit", "active_min", "active_max", "step", "off_value"),
+            "encoding": ("scale", "offset"),
+        }
+        layout = {}
+        for group, names in groups.items():
+            subset = {key: value for key, value in fields.items()
+                      if getattr(key, 'schema', str(key)) in names}
+            layout[vol.Required(group)] = section(
+                vol.Schema(subset), {"collapsed": group != "addressing"})
+        layout[vol.Required("confirm", default=False)] = selector.BooleanSelector()
+        return self.async_show_form(step_id="quick_write_point_form",
+                                    data_schema=vol.Schema(layout), errors=errors)
+
+    async def async_step_quick_delete_point(self, user_input=None):
+        """One deletion list for sensors and actuators; explicit confirmation."""
+        options = [
+            ("read:" + p["id"], "Sensor: " + p["name"]) for p in self._registers()
+        ] + [
+            ("write:" + p["id"], "Aktor: " + p["name"]) for p in self._write_points()
+        ]
+        if not options:
+            return self.async_abort(reason="no_modbus_registers")
+        errors = {}
+        if user_input is not None:
+            ident = user_input["point_id"]
+            if ident not in {key for key, _ in options}:
+                errors["base"] = "invalid_register"
+            elif not user_input.get("confirm"):
+                errors["base"] = "confirm_required"
+            else:
+                kind, key = ident.split(":", 1)
+                name = "modbus_registers" if kind == "read" else "modbus_write_points"
+                records = self._registers() if kind == "read" else self._write_points()
+                new = dict(self.config_entry.options)
+                new[name] = [point for point in records if point["id"] != key]
+                return self.async_create_entry(title="", data=new)
+        return self.async_show_form(step_id="quick_delete_point",
+            data_schema=vol.Schema({
+                vol.Required("point_id"): selector.SelectSelector(
+                    selector.SelectSelectorConfig(options=[
+                        selector.SelectOptionDict(value=key, label=label)
+                        for key, label in options], mode="dropdown")),
+                vol.Required("confirm", default=False): selector.BooleanSelector(),
+            }), errors=errors)
+
     async def async_step_quick_read_point_choose(self, user_input=None):
         """Choose new or existing read sensor; keep its stable ID when editing."""
         connections = self._connections()
@@ -753,17 +875,27 @@ class PVOptionsFlow(config_entries.OptionsFlow):
                             if key != "id"))
 
     def _quick_read_schema(self, values: dict):
-        """Existing register fields plus one explicit workflow action."""
-        base_schema = _modbus_register_schema(self._connections(), values)
-        schema = dict(base_schema.schema if hasattr(base_schema, "schema")
-                      else base_schema)
-        schema[vol.Required("wizard_action", default="test")] = (
+        """Expandable address, decoding and polling on one testable form."""
+        base = _modbus_register_schema(self._connections(), values)
+        fields = dict(base.schema if hasattr(base, "schema") else base)
+        groups = {
+            "addressing": ("connection_id", "name", "address", "function_code"),
+            "decoding": ("data_type", "byte_order", "scale", "offset", "unit"),
+            "sampling": ("poll_seconds",),
+        }
+        layout = {}
+        for group, names in groups.items():
+            subset = {key: value for key, value in fields.items()
+                      if getattr(key, 'schema', str(key)) in names}
+            layout[vol.Required(group)] = section(
+                vol.Schema(subset), {"collapsed": group != "addressing"})
+        layout[vol.Required("wizard_action", default="test")] = (
             selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                selector.SelectOptionDict(value="test", label="Verbindung und Register testen"),
+                selector.SelectOptionDict(value="test", label="Register lesen / testen"),
                 selector.SelectOptionDict(value="save", label="Geprüfte Einstellungen speichern"),
-                selector.SelectOptionDict(value="back", label="Zur Sensor-Auswahl zurück"),
+                selector.SelectOptionDict(value="back", label="Zur Sensor-Auswahl"),
             ], mode="dropdown")))
-        return vol.Schema(schema)
+        return vol.Schema(layout)
 
     async def _quick_read_test(self, reg: dict) -> tuple[bool, str]:
         """Read only the current unsaved draft, never touch write registers."""
@@ -820,8 +952,9 @@ class PVOptionsFlow(config_entries.OptionsFlow):
             action = user_input.get("wizard_action", "test")
             if action == "back":
                 return await self.async_step_quick_read_point_choose()
-            draft = {key: value for key, value in user_input.items()
-                     if key != "wizard_action"}
+            draft = dict(self._quick_read_draft)
+            for group in ("addressing", "decoding", "sampling"):
+                draft.update(user_input.get(group, {}))
             normalized, error = validate_read_point(
                 draft, {conn["id"] for conn in self._connections()})
             self._quick_read_draft = normalized if not error else draft

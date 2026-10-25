@@ -1,3 +1,7 @@
+## Einheitliche Einrichtung (ab 0.3.2b1)
+
+Konfigurieren → **Anlage / Verbraucher / Verbindungen / Datenpunkte**. Verbindungen werden vor Modbus-Datenpunkten angeboten. Zum Anlegen oder Bearbeiten einer Verbindung, eines Sensors oder Aktors wird zuerst das Objekt gewählt; anschließend stehen alle erforderlichen Felder in **nativen aufklappbaren Home-Assistant-Abschnitten auf derselben Seite**. Unter Datenpunkte gibt es Sensor erstellen/bearbeiten, Aktor erstellen/bearbeiten und Sensor/Aktor löschen. Sensortests können ohne vorherige Speicherung wiederholt werden; Schreibaktoren werden beim Einrichten niemals probeweise betätigt. Löschen verlangt explizite Bestätigung. **Die Leistungsverteilung selbst ist seit 0.3.0b1 unverändert.**
+
 ## Verbraucher einrichten mit aufklappbaren Bereichen (0.3.1b2)
 
 Unter **Konfigurieren → Verbraucher einrichten** wählst du einen bestehenden Verbraucher oder legst einen neuen an. Anschließend öffnet sich **eine einzige Formularseite** mit den Bereichen Grundlagen, Ansteuerung, Messwerte/Anforderung und erweiterte Geräteeinstellungen. Zusätzliche Dropdown-Felder „Weiter oder Zurück“ gibt es nicht mehr. Der Grundlagenbereich ist direkt geöffnet; technische Zusätze lassen sich bei Bedarf aufklappen. Erst nach Bestätigung der Angaben wird gespeichert. Bei Fehlern bleibt das Formular mit den bereits eingegebenen Daten geöffnet.

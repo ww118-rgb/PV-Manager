@@ -1,3 +1,15 @@
+## 0.3.2b1 — Einheitliche, aufklappbare Konfiguration
+
+- Hauptmenü in logischer Reihenfolge **Anlage, Verbraucher, Verbindungen, Datenpunkte, Diagnose, Erweitert**. Verbindungen werden vor den Datenpunkten eingerichtet.
+- Datenpunkt-Menü auf **Sensor erstellen oder bearbeiten**, **Aktor erstellen oder bearbeiten**, **Sensor oder Aktor löschen** reduziert. Gleiche Auswahl für neue und bestehende Objekte, Änderungen erhalten interne IDs.
+- Anlagenkonfiguration auf **eine** Maske mit aufklappbaren Bereichen Messwerte, Vorzeichen und Regelparameter umgestellt. Es werden keine Zwischenschritte gespeichert.
+- Modbus-TCP-Verbindungen: Erstellen und Bearbeiten auf derselben Maske mit aufklappbaren Verbindungsdaten.
+- Modbus-Lesesensor: Verbindungs-/Registerangaben, Dekodierung und Abfragerhythmus als aufklappbare Abschnitte. Test/Korrektur/Retest bleiben vor dem Speichern möglich.
+- Modbus-Schreibaktor: Verbindungsregister, Geräte-Grenzen inklusive explizitem Stop/Pausewert und Skalierung in einem Abschnittsformular. **Kein automatischer Schreibtest**.
+- Zusammengefasstes Löschen mit ausdrücklicher Bestätigung und unterscheidbaren Sensor-/Aktorbezeichnungen.
+- Verbrauchermaske bleibt das bestehende Abschnittsformular aus 0.3.1b2. Der 15-Sekunden-Ein-Zyklus-Regler sowie sämtliche echten Mess-/Schreibpfade bleiben unverändert.
+- Achtung: Native HA-Menüs und Confirm-Felder sind kein vollständiges custom Frontend; unmittelbare Usability muss in Home Assistant verifiziert werden.
+
 ## 0.3.1b2 — Verbraucherformular mit nativen aufklappbaren Bereichen
 
 - Das bisherige mehrseitige Verbraucherformular mit dem umständlichen Dropdown „Navigation (Weiter oder Zurück)“ wurde durch **ein einziges Formular mit Home-Assistant-Sections** ersetzt: Grundlagen/Leistung (offen), Ansteuerung, Messwerte/Anforderung und erweiterte Geräteeinstellungen (eingeklappt).

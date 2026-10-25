@@ -19,10 +19,10 @@
       "init": {
         "title": "Energiemanager verwalten",
         "menu_options": {
-          "quick_system_sources": "Anlage einrichten und bearbeiten",
+          "quick_site_form": "Anlage einrichten und bearbeiten",
           "quick_consumer_choose": "Verbraucher einrichten und bearbeiten",
-          "quick_data_points": "Datenpunkte – Sensoren und Aktoren",
           "quick_connections": "Verbindungen – Modbus TCP",
+          "quick_data_points": "Datenpunkte – Sensoren und Aktoren",
           "quick_diagnostics": "Diagnose und Einstellungen prüfen",
           "advanced": "Erweiterte Einstellungen"
         }
@@ -231,12 +231,10 @@
       "advanced": {
         "title": "Erweiterte Einstellungen",
         "menu_options": {
-          "general": "Regelparameter und allgemeine Einstellungen",
-          "advanced_consumers": "Verbraucher – Expertenverwaltung",
+          "quick_site_form": "Anlage und Regelparameter",
+          "advanced_consumers": "Verbraucher verwalten",
           "quick_connections": "Verbindungen verwalten",
-          "quick_data_points": "Datenpunkte verwalten",
-          "modbus_test_register": "Gespeichertes Modbus-Register lesen",
-          "modbus_remove_register": "Modbus-Lesesensor entfernen"
+          "quick_data_points": "Datenpunkte verwalten"
         }
       },
       "quick_system_sources": {
@@ -296,21 +294,18 @@
       },
       "quick_data_points": {
         "title": "Datenpunkte verwalten",
-        "description": "Modbus-Lesesensoren direkt anlegen, testen und bearbeiten. Schreibaktoren werden getrennt eingerichtet; Tests senden keine Schreibbefehle. Bereits vorhandene Home-Assistant-Entitäten können unter Anlage oder Verbraucher zugeordnet werden.",
+        "description": "Modbus-Datenpunkte direkt anlegen, testen und bearbeiten. Lese-Tests schreiben keine Register; Aktoren benötigen einen ausdrücklich konfigurierten Pause-/Aus-Wert. Vorhandene HA-Entitäten können bei Anlage oder Verbrauchern zugeordnet werden.",
         "menu_options": {
-          "quick_read_point_choose": "Modbus-Lesesensor anlegen oder bearbeiten",
-          "modbus_write": "Modbus-Schreibaktor anlegen",
-          "modbus_edit_write": "Modbus-Schreibaktor bearbeiten",
-          "modbus_remove_write": "Modbus-Schreibaktor entfernen"
+          "quick_read_point_choose": "Sensor erstellen oder bearbeiten",
+          "quick_write_point_choose": "Aktor erstellen oder bearbeiten",
+          "quick_delete_point": "Sensor oder Aktor löschen"
         }
       },
       "quick_connections": {
-        "title": "Modbus-TCP-Verbindungen verwalten",
-        "description": "Eine Verbindung kann von mehreren Sensoren und Aktoren genutzt werden. Verbindung und Sensor sind unterschiedliche Objekte.",
+        "title": "Verbindungen – Modbus TCP",
         "menu_options": {
-          "modbus_connection": "Modbus-TCP-Verbindung hinzufügen",
-          "modbus_edit_connection": "Verbindung bearbeiten",
-          "modbus_remove_connection": "Verbindung entfernen"
+          "quick_connection_choose": "Verbindung erstellen oder bearbeiten",
+          "modbus_remove_connection": "Verbindung löschen"
         }
       },
       "quick_read_point_choose": {
@@ -339,6 +334,33 @@
           "unit": "Physikalische Einheit, z. B. W",
           "poll_seconds": "Abfrageintervall in Sekunden",
           "wizard_action": "Aktion nach dem Ausfüllen"
+        },
+        "sections": {
+          "addressing": {
+            "name": "Verbindung und Registeradresse",
+            "data": {
+              "connection_id": "Modbus-Gerät",
+              "name": "Sensorname",
+              "address": "Registeradresse (0-basiert)",
+              "function_code": "Lesefunktion (FC03/FC04)"
+            }
+          },
+          "decoding": {
+            "name": "Datentyp und Wertumrechnung",
+            "data": {
+              "data_type": "Registerdatentyp",
+              "byte_order": "Byte-/Wortreihenfolge (32 Bit)",
+              "scale": "Skalierung (Wert = Rohwert × Faktor + Offset)",
+              "offset": "Offset",
+              "unit": "Physikalische Einheit, z. B. W"
+            }
+          },
+          "sampling": {
+            "name": "Abfrageintervall",
+            "data": {
+              "poll_seconds": "Abfrageintervall in Sekunden"
+            }
+          }
         }
       },
       "quick_consumer_form": {
@@ -390,6 +412,116 @@
             }
           }
         }
+      },
+      "quick_connection_choose": {
+        "title": "Verbindung auswählen",
+        "data": {
+          "connection_id": "Neue oder vorhandene Verbindung"
+        }
+      },
+      "quick_connection_form": {
+        "title": "Modbus-TCP-Verbindung bearbeiten",
+        "description": "Verbindungsdaten auf einer Seite bearbeiten. Gespeichert wird erst nach Prüfung und Bestätigung.",
+        "data": {
+          "confirm": "Verbindungsdaten geprüft – speichern"
+        },
+        "sections": {
+          "device": {
+            "name": "Verbindungsdaten",
+            "data": {
+              "name": "Gerätename",
+              "host": "Host / IP-Adresse",
+              "port": "TCP-Port",
+              "unit_id": "Modbus Unit-ID"
+            }
+          }
+        }
+      },
+      "quick_write_point_choose": {
+        "title": "Schreibaktor auswählen",
+        "data": {
+          "write_id": "Neuer oder vorhandener Aktor"
+        },
+        "menu_options": {
+          "quick_connection_choose": "Zuerst Verbindung einrichten"
+        }
+      },
+      "quick_write_point_form": {
+        "title": "Modbus-Aktor erstellen oder bearbeiten",
+        "description": "Alle Einstellungen auf einer Seite. Der Pause-/Aus-Wert ist eine sicherheitsrelevante Herstellerangabe. Es werden beim Einrichten und Testen keine Schreibbefehle ausgelöst.",
+        "data": {
+          "confirm": "Aktorwerte und Pausebefehl geprüft – speichern"
+        },
+        "sections": {
+          "addressing": {
+            "name": "Register und Verbindung",
+            "data": {
+              "connection_id": "Modbus-Gerät",
+              "name": "Name des Stellwerts",
+              "address": "Schreibregisteradresse (0-basiert)",
+              "function_code": "Schreibfunktion (FC06/FC16)",
+              "data_type": "Schreibdatentyp",
+              "byte_order": "Byte-/Wortreihenfolge"
+            }
+          },
+          "limits": {
+            "name": "Geräteeinheit, Grenzen und Pause",
+            "data": {
+              "unit": "Physikalische Geräte-Einheit (A, W, kW usw.)",
+              "active_min": "Kleinster aktiver Sollwert (z. B. 6 A)",
+              "active_max": "Größter aktiver Sollwert (z. B. 16 A)",
+              "step": "Schrittweite (z. B. 1 A)",
+              "off_value": "Expliziter Gerätewert für Pause/Aus (0 kann gefährlich sein!)"
+            }
+          },
+          "encoding": {
+            "name": "Erweiterte Skalierung",
+            "data": {
+              "scale": "Gerätefaktor (Wert = Register × Faktor + Offset)",
+              "offset": "Geräteoffset"
+            }
+          }
+        }
+      },
+      "quick_delete_point": {
+        "title": "Sensor oder Aktor löschen",
+        "description": "Löscht nur die interne Modbus-Datenpunktdefinition. Vor dem Löschen prüfen, ob Anlage oder Verbraucher den Sensor/Aktor noch verwenden. Es werden keine Befehle an Geräte gesendet.",
+        "data": {
+          "point_id": "Sensor oder Aktor auswählen",
+          "confirm": "Datenpunkt wirklich löschen"
+        }
+      },
+      "quick_site_form": {
+        "title": "Anlage einrichten und bearbeiten",
+        "description": "Alle Messwerte und Optionen auf einer Seite; Bereiche bei Bedarf öffnen. **Netzvorschau:** {preview}. Bitte Netzvorzeichen anhand eines bekannten Zustands prüfen.",
+        "data": {
+          "confirm": "Anlageneinstellungen geprüft – speichern"
+        },
+        "sections": {
+          "sources": {
+            "name": "Anlagen-Messwerte",
+            "data": {
+              "grid_entity": "Netzleistung",
+              "pv_entity": "PV-Erzeugung (optional)",
+              "battery_entity": "Batterieleistung (optional)"
+            }
+          },
+          "directions": {
+            "name": "Vorzeichen und Leistungsrichtung",
+            "data": {
+              "grid_export_positive": "Netz positiv = Einspeisung",
+              "battery_charge_positive": "Batterie positiv = Laden"
+            }
+          },
+          "regulation": {
+            "name": "Regelparameter und Reserve",
+            "data": {
+              "interval_s": "Wartezeit nach Regelzyklus (s)",
+              "reserve_w": "Leistungsreserve (W)",
+              "feedback_settle_s": "Messwert-Rückmeldezeit (s)"
+            }
+          }
+        }
       }
     },
     "error": {
@@ -412,7 +544,8 @@
       "actuator_limits_mismatch": "Min./Max.-Leistung passt nicht zum Wertebereich des gewählten Aktors.",
       "actuator_step_mismatch": "Mindestleistung liegt zwischen möglichen Stellstufen. Mindestleistung anpassen.",
       "read_test_required": "Bitte die aktuellen Daten zuerst erfolgreich testen. Danach kannst du speichern.",
-      "read_test_failed": "Verbindung oder Registertest fehlgeschlagen. Ergebnis unten prüfen und Einstellungen korrigieren."
+      "read_test_failed": "Verbindung oder Registertest fehlgeschlagen. Ergebnis unten prüfen und Einstellungen korrigieren.",
+      "missing_grid_sensor": "Bitte einen Netzleistungssensor auswählen."
     },
     "abort": {
       "no_devices": "Keine Verbraucher eingerichtet.",

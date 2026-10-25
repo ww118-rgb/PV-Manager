@@ -19,11 +19,11 @@
       "init": {
         "title": "Manage energy manager",
         "menu_options": {
-          "quick_system_sources": "Set up or edit site",
+          "quick_site_form": "Set up or edit site",
           "quick_consumer_choose": "Set up or edit consumers",
-          "quick_data_points": "Data points – sensors and actuators",
           "quick_connections": "Connections – Modbus TCP",
-          "quick_diagnostics": "Review setup and diagnostics",
+          "quick_data_points": "Data points – sensors and actuators",
+          "quick_diagnostics": "Check setup and diagnostics",
           "advanced": "Advanced settings"
         }
       },
@@ -231,12 +231,10 @@
       "advanced": {
         "title": "Advanced settings",
         "menu_options": {
-          "general": "General control settings",
-          "advanced_consumers": "Consumers – expert management",
+          "quick_site_form": "Site and control settings",
+          "advanced_consumers": "Manage consumers",
           "quick_connections": "Manage connections",
-          "quick_data_points": "Manage data points",
-          "modbus_test_register": "Test existing Modbus register",
-          "modbus_remove_register": "Delete Modbus read sensor"
+          "quick_data_points": "Manage data points"
         }
       },
       "quick_system_sources": {
@@ -296,21 +294,18 @@
       },
       "quick_data_points": {
         "title": "Manage data points",
-        "description": "Create, test and edit Modbus read sensors in one place. Write actuators are configured separately; read tests never send commands. Existing Home Assistant entities can be assigned under Site or Consumers.",
+        "description": "Create, test and edit Modbus data points. Read tests never write; output actors require an explicit stop value. Existing HA entities can be selected under Site or Consumers.",
         "menu_options": {
-          "quick_read_point_choose": "Create or edit Modbus read sensor",
-          "modbus_write": "Create Modbus write actuator",
-          "modbus_edit_write": "Edit Modbus write actuator",
-          "modbus_remove_write": "Remove Modbus write actuator"
+          "quick_read_point_choose": "Create or edit sensor",
+          "quick_write_point_choose": "Create or edit actuator",
+          "quick_delete_point": "Delete sensor or actuator"
         }
       },
       "quick_connections": {
-        "title": "Manage Modbus TCP connections",
-        "description": "A connection can be reused by multiple sensors and actuators. Connection and data point are separate objects.",
+        "title": "Connections – Modbus TCP",
         "menu_options": {
-          "modbus_connection": "Add Modbus TCP connection",
-          "modbus_edit_connection": "Edit connection",
-          "modbus_remove_connection": "Remove connection"
+          "quick_connection_choose": "Create or edit connection",
+          "modbus_remove_connection": "Delete connection"
         }
       },
       "quick_read_point_choose": {
@@ -339,6 +334,33 @@
           "unit": "Physical unit, e.g. W",
           "poll_seconds": "Polling interval in seconds",
           "wizard_action": "Action after editing"
+        },
+        "sections": {
+          "addressing": {
+            "name": "Connection and register",
+            "data": {
+              "connection_id": "Modbus device",
+              "name": "Sensor name",
+              "address": "Register address (zero-based)",
+              "function_code": "Read function code (FC03/FC04)"
+            }
+          },
+          "decoding": {
+            "name": "Data type and decoding",
+            "data": {
+              "data_type": "Register data type",
+              "byte_order": "Byte/word order (32-bit)",
+              "scale": "Scaling factor (value = raw × scale + offset)",
+              "offset": "Offset",
+              "unit": "Physical unit, e.g. W"
+            }
+          },
+          "sampling": {
+            "name": "Polling interval",
+            "data": {
+              "poll_seconds": "Polling interval in seconds"
+            }
+          }
         }
       },
       "quick_consumer_form": {
@@ -390,6 +412,116 @@
             }
           }
         }
+      },
+      "quick_connection_choose": {
+        "title": "Select connection",
+        "data": {
+          "connection_id": "New or existing connection"
+        }
+      },
+      "quick_connection_form": {
+        "title": "Edit Modbus TCP connection",
+        "description": "Edit the connection in one expandable form. Saving requires confirmation.",
+        "data": {
+          "confirm": "Connection settings checked – save"
+        },
+        "sections": {
+          "device": {
+            "name": "Connection details",
+            "data": {
+              "name": "Device name",
+              "host": "Host / IP address",
+              "port": "TCP port",
+              "unit_id": "Modbus Unit ID"
+            }
+          }
+        }
+      },
+      "quick_write_point_choose": {
+        "title": "Select write actuator",
+        "data": {
+          "write_id": "New or existing actuator"
+        },
+        "menu_options": {
+          "quick_connection_choose": "Configure a connection first"
+        }
+      },
+      "quick_write_point_form": {
+        "title": "Create or edit Modbus actuator",
+        "description": "All settings on one page. The stop/off value must be configured correctly according to the manufacturer. This setup does not send commands.",
+        "data": {
+          "confirm": "Actuator settings and stop value checked – save"
+        },
+        "sections": {
+          "addressing": {
+            "name": "Register and connection",
+            "data": {
+              "connection_id": "Modbus device",
+              "name": "Setpoint name",
+              "address": "Write register address (zero-based)",
+              "function_code": "Write function (FC06/FC16)",
+              "data_type": "Register data type",
+              "byte_order": "Byte/word order"
+            }
+          },
+          "limits": {
+            "name": "Unit, limits and pause",
+            "data": {
+              "unit": "Physical unit (A, W, kW, etc.)",
+              "active_min": "Minimum active setpoint",
+              "active_max": "Maximum active setpoint",
+              "step": "Setpoint step",
+              "off_value": "Explicit device value for pause/off (zero can be unsafe!)"
+            }
+          },
+          "encoding": {
+            "name": "Advanced encoding",
+            "data": {
+              "scale": "Device scaling (value = register × scale + offset)",
+              "offset": "Device offset"
+            }
+          }
+        }
+      },
+      "quick_delete_point": {
+        "title": "Delete sensor or actuator",
+        "description": "Deletes only the internal Modbus data point. Ensure it is no longer in use by the site or any consumer. No commands are sent.",
+        "data": {
+          "point_id": "Select sensor or actuator",
+          "confirm": "Confirm deletion"
+        }
+      },
+      "quick_site_form": {
+        "title": "Set up or edit site",
+        "description": "Edit all site settings on one page. **Grid preview:** {preview}. Check the sign of the grid value against a known state.",
+        "data": {
+          "confirm": "Site settings checked – save"
+        },
+        "sections": {
+          "sources": {
+            "name": "Site measurements",
+            "data": {
+              "grid_entity": "Grid power",
+              "pv_entity": "PV generation (optional)",
+              "battery_entity": "Battery power (optional)"
+            }
+          },
+          "directions": {
+            "name": "Sign conventions",
+            "data": {
+              "grid_export_positive": "Positive grid means export",
+              "battery_charge_positive": "Positive battery means charging"
+            }
+          },
+          "regulation": {
+            "name": "Control parameters and reserve",
+            "data": {
+              "interval_s": "Wait after cycle (s)",
+              "reserve_w": "Power reserve (W)",
+              "feedback_settle_s": "Feedback settling (s)"
+            }
+          }
+        }
       }
     },
     "error": {
@@ -412,7 +544,8 @@
       "actuator_limits_mismatch": "Power range does not fit actuator limits.",
       "actuator_step_mismatch": "Minimum power cannot be represented by actuator steps.",
       "read_test_required": "Test the current settings successfully before saving.",
-      "read_test_failed": "Connection or register test failed. Review the result and edit settings below."
+      "read_test_failed": "Connection or register test failed. Review the result and edit settings below.",
+      "missing_grid_sensor": "Choose a grid power sensor."
     },
     "abort": {
       "no_devices": "No consumers configured.",
