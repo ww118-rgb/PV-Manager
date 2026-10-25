@@ -115,6 +115,76 @@ class RuntimeMonitoringTests(unittest.TestCase):
         self.assertEqual(ems.last_targets['evse'], 0)
         self.assertEqual(ems.request_since, {})
 
+    def test_own_unknown_modbus_number_allows_first_automatic_command(self):
+        class WriteState:
+            state = 'unknown'
+            attributes = {
+                'feedback_status': 'unknown_after_start',
+                'off_value_configured': True,
+                'last_write_error': None,
+                'step': 1, 'min': 0, 'max': 16,
+            }
+
+        class States:
+            def get(self, key):
+                return WriteState() if key == 'number.wallbox' else None
+
+        class Services:
+            def __init__(self):
+                self.commands = []
+            async def async_call(self, domain, action, data, blocking=False):
+                self.commands.append((domain, action, data))
+
+        registry_record = types.SimpleNamespace(
+            domain='number', platform='pv_energiemanager',
+            config_entry_id='entry1', unique_id='entry1_mb_write_w1',
+        )
+        registry = types.SimpleNamespace(async_get=lambda _: registry_record)
+        hass = types.SimpleNamespace(states=States(), services=Services(), entity_registry=registry)
+        device = {
+            'id': 'wallbox', 'name': 'Wallbox 1', 'kind': 'continuous',
+            'priority': 1, 'subpriority': 1, 'min_w': 4140, 'max_w': 11040,
+            'power_output': 'number.wallbox', 'output_unit': 'A',
+            'phases': 3, 'voltage': 230,
+        }
+        entry = types.SimpleNamespace(entry_id='entry1', data={}, options={
+            'devices': [device], 'modbus_write_points': [{'id': 'w1', 'off_value': 1}],
+        })
+        manager = self.manager_module.PowerManager(hass, entry)
+        self.assertEqual(asyncio.run(manager._write(device, 4140)), 4140)
+        self.assertEqual(hass.services.commands, [(
+            'number', 'set_value', {'entity_id': 'number.wallbox', 'value': 6.0}
+        )])
+
+    def test_other_unknown_actuator_still_blocked(self):
+        class States:
+            def get(self, key):
+                return types.SimpleNamespace(state='unknown', attributes={
+                    'feedback_status': 'unknown_after_start',
+                    'off_value_configured': True, 'last_write_error': None,
+                    'step': 1, 'min': 0, 'max': 16,
+                })
+        class Services:
+            calls = 0
+            async def async_call(self, *args, **kwargs):
+                self.calls += 1
+
+        reg = types.SimpleNamespace(
+            domain='number', platform='other_integration',
+            config_entry_id='other', unique_id='elsewhere',
+        )
+        hass = types.SimpleNamespace(states=States(), services=Services(),
+                                     entity_registry=types.SimpleNamespace(async_get=lambda _: reg))
+        device = {'id':'w', 'name':'Wallbox', 'kind':'continuous',
+                  'power_output':'number.wallbox', 'output_unit':'A',
+                  'phases':3, 'voltage':230, 'min_w':4140, 'max_w':11040}
+        entry = types.SimpleNamespace(entry_id='entry1', data={}, options={
+            'devices':[device], 'modbus_write_points':[{'id':'w1','off_value':1}]})
+        manager = self.manager_module.PowerManager(hass, entry)
+        with self.assertRaisesRegex(ValueError, 'HA-Zustand: unknown'):
+            asyncio.run(manager._write(device, 4140))
+        self.assertEqual(hass.services.calls, 0)
+
     def test_invalid_grid_clears_old_budget_while_paused(self):
         class States:
             def get(self, key): return None
