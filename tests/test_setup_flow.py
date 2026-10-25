@@ -463,6 +463,23 @@ class WizardFlowTests(unittest.TestCase):
         self.assertEqual(removed['data']['modbus_write_points'],[])
         self.assertEqual(removed['data']['modbus_registers'],[read])
 
+    def test_deletion_blocks_data_points_assigned_to_site(self):
+        flow=self.flow()
+        flow.config_entry.entry_id='test'
+        flow.config_entry.options['modbus_registers']=[{
+            'id':'r1','name':'Netz'}]
+        registry=types.SimpleNamespace(
+            async_get_entity_id=lambda domain,platform,unique_id:
+                'sensor.grid' if unique_id=='test_mb_r1' else None)
+        module=mod('homeassistant.helpers.entity_registry',
+                   async_get=lambda hass:registry)
+        with patch.dict(sys.modules,{'homeassistant.helpers.entity_registry':module}):
+            result=self.do_step(flow.async_step_quick_delete_point,
+                {'point_id':'read:r1','confirm':True})
+        self.assertEqual(result['errors']['base'],'point_in_use')
+        self.assertEqual(flow.config_entry.options['modbus_registers'][0]['id'],'r1')
+
+
 
 if __name__ == '__main__':
     unittest.main()

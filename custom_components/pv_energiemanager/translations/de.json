@@ -287,8 +287,7 @@
       "advanced_consumers": {
         "title": "Verbraucher – Expertenfunktionen",
         "menu_options": {
-          "add": "Verbraucher hinzufügen (Expertenmodus)",
-          "edit": "Verbraucher bearbeiten (Expertenmodus)",
+          "quick_consumer_choose": "Verbraucher erstellen oder bearbeiten",
           "remove": "Verbraucher entfernen"
         }
       },
@@ -545,7 +544,8 @@
       "actuator_step_mismatch": "Mindestleistung liegt zwischen möglichen Stellstufen. Mindestleistung anpassen.",
       "read_test_required": "Bitte die aktuellen Daten zuerst erfolgreich testen. Danach kannst du speichern.",
       "read_test_failed": "Verbindung oder Registertest fehlgeschlagen. Ergebnis unten prüfen und Einstellungen korrigieren.",
-      "missing_grid_sensor": "Bitte einen Netzleistungssensor auswählen."
+      "missing_grid_sensor": "Bitte einen Netzleistungssensor auswählen.",
+      "point_in_use": "Dieser Sensor oder Aktor wird noch von Anlage oder Verbraucher verwendet. Erst dort die Zuordnung entfernen."
     },
     "abort": {
       "no_devices": "Keine Verbraucher eingerichtet.",

@@ -288,7 +288,8 @@ class PVOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_advanced_consumers(self, user_input=None):
         return self.async_show_menu(
-            step_id="advanced_consumers", menu_options=["add", "edit", "remove"],
+            step_id="advanced_consumers",
+            menu_options=["quick_consumer_choose", "remove"],
         )
 
     async def async_step_advanced(self, user_input=None):
@@ -802,6 +803,27 @@ class PVOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id="quick_write_point_form",
                                     data_schema=vol.Schema(layout), errors=errors)
 
+    def _point_is_assigned(self, kind: str, point_id: str) -> bool:
+        """Block deleting an entity still configured as a control dependency."""
+        entry_id = getattr(self.config_entry, "entry_id", None)
+        if not entry_id:
+            return False
+        from homeassistant.helpers import entity_registry
+        registry = entity_registry.async_get(self.hass)
+        unique_id = (f"{entry_id}_mb_{point_id}" if kind == "read"
+                     else f"{entry_id}_mb_write_{point_id}")
+        entity_id = registry.async_get_entity_id(
+            "sensor" if kind == "read" else "number", DOMAIN, unique_id)
+        if not entity_id:
+            return False
+        cfg = {**self.config_entry.data, **self.config_entry.options}
+        if entity_id in (cfg.get("grid_entity"), cfg.get("battery_entity"),
+                         cfg.get("pv_entity")):
+            return True
+        return any(entity_id in (d.get("actual_entity"), d.get("demand_entity"),
+                                 d.get("power_output"), d.get("switch_output"))
+                   for d in self._devices())
+
     async def async_step_quick_delete_point(self, user_input=None):
         """One deletion list for sensors and actuators; explicit confirmation."""
         options = [
@@ -820,11 +842,14 @@ class PVOptionsFlow(config_entries.OptionsFlow):
                 errors["base"] = "confirm_required"
             else:
                 kind, key = ident.split(":", 1)
-                name = "modbus_registers" if kind == "read" else "modbus_write_points"
-                records = self._registers() if kind == "read" else self._write_points()
-                new = dict(self.config_entry.options)
-                new[name] = [point for point in records if point["id"] != key]
-                return self.async_create_entry(title="", data=new)
+                if self._point_is_assigned(kind, key):
+                    errors["base"] = "point_in_use"
+                else:
+                    name = "modbus_registers" if kind == "read" else "modbus_write_points"
+                    records = self._registers() if kind == "read" else self._write_points()
+                    new = dict(self.config_entry.options)
+                    new[name] = [point for point in records if point["id"] != key]
+                    return self.async_create_entry(title="", data=new)
         return self.async_show_form(step_id="quick_delete_point",
             data_schema=vol.Schema({
                 vol.Required("point_id"): selector.SelectSelector(

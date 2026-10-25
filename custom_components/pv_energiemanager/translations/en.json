@@ -287,9 +287,8 @@
       "advanced_consumers": {
         "title": "Consumers – expert functions",
         "menu_options": {
-          "add": "Add consumer (expert mode)",
-          "edit": "Edit consumer (expert mode)",
-          "remove": "Remove consumer"
+          "quick_consumer_choose": "Create or edit consumer",
+          "remove": "Delete consumer"
         }
       },
       "quick_data_points": {
@@ -545,7 +544,8 @@
       "actuator_step_mismatch": "Minimum power cannot be represented by actuator steps.",
       "read_test_required": "Test the current settings successfully before saving.",
       "read_test_failed": "Connection or register test failed. Review the result and edit settings below.",
-      "missing_grid_sensor": "Choose a grid power sensor."
+      "missing_grid_sensor": "Choose a grid power sensor.",
+      "point_in_use": "This sensor or actuator is still assigned to the site or a consumer. Remove its assignment first."
     },
     "abort": {
       "no_devices": "No consumers configured.",
