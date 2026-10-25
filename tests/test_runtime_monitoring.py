@@ -715,6 +715,33 @@ class RuntimeMonitoringTests(unittest.TestCase):
 
         asyncio.run(scenario())
 
+    def test_scheduler_wait_begins_only_after_write_batch(self):
+        """Assert execution order, not merely that a timer exists."""
+        async def scenario():
+            entry = types.SimpleNamespace(
+                entry_id='test', data={'interval_s':15}, options={}
+            )
+            manager = self.manager_module.PowerManager(
+                types.SimpleNamespace(), entry)
+            events = []
+
+            async def fake_cycle():
+                events.extend(['measure', 'plan', 'write'])
+
+            async def fake_wait(seconds):
+                events.append(('wait', seconds))
+                manager._loop_running = False
+
+            manager.async_cycle = fake_cycle
+            manager._loop_running = True
+            with patch.object(self.manager_module.asyncio, 'sleep', fake_wait):
+                await manager._run_loop()
+            self.assertEqual(events,
+                             ['measure', 'plan', 'write', ('wait', 15)])
+            self.assertFalse(manager._loop_running)
+
+        asyncio.run(scenario())
+
     def test_manager_waits_after_completed_cycle_not_before(self):
         """The single task must not immediately run a second regulation."""
         class State:

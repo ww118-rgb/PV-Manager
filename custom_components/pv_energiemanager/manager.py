@@ -12,7 +12,7 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE
-from .engine import Consumer, distribute
+from .engine import Consumer
 from .control import plan_cycle
 from .actuator_guard import actuator_can_receive_command
 
@@ -463,45 +463,43 @@ class PowerManager:
                     return
 
                 now = time.monotonic()
-                consumers = self._build_consumers(now, preview=True)
+                # Start-delay is a physical device requirement measured from
+                # its request, not a separate EMS reallocation controller.
+                # Do not advance any request timers while regulation is off.
+                if self.enabled:
+                    for device in self.devices:
+                        key = device["id"]
+                        if self._read_demand(device) and self.last_targets.get(key, 0) == 0:
+                            self.request_since.setdefault(key, now)
+                        elif not self._read_demand(device):
+                            self.request_since.pop(key, None)
+
+                consumers = self._build_consumers(now, preview=not self.enabled)
+                # Missing Ist values reserve the entire previous Soll; known
+                # Ist above the old command cannot be claimed as free power.
                 accounted = sum(
                     min(c.actual, c.old_target) if c.actual is not None
                     else c.old_target
                     for c in consumers
                 )
                 reserve = float(self.settings.get("reserve_w", DEFAULT_RESERVE))
-                measured_plan = plan_cycle(
+                plan = plan_cycle(
                     grid, battery, accounted, reserve,
                     consumers, self.last_targets,
                 )
-                budget = measured_plan.physical_budget
-                allocation_budget = measured_plan.allowed_budget
+                budget = plan.physical_budget
+                allocation_budget = plan.allowed_budget
                 self.values.update({
                     "budget": round(budget, 1),
                     "allocation_budget": round(allocation_budget, 1),
                     "deficit": max(0.0, -budget),
                 })
                 if not self.enabled:
-                    # Observation only: never calculate or apply new actuator
-                    # commands, and never touch activation/delay bookkeeping.
+                    # Read-only monitoring never writes or advances cycle count.
                     self.status = "Pausiert"
                     self.error = ""
                     return
-                preview = distribute(allocation_budget, consumers)
-                for d in self.devices:
-                    key = d["id"]
-                    desired = preview.targets[key]
-                    current = self.last_targets.get(key, 0)
-                    if self._read_demand(d) and current == 0 and desired > 0:
-                        self.request_since.setdefault(key, now)
-                    elif not self._read_demand(d) or desired == 0:
-                        self.request_since.pop(key, None)
 
-                live_consumers = self._build_consumers(now, preview=False)
-                plan = plan_cycle(
-                    grid, battery, accounted, reserve,
-                    live_consumers, self.last_targets,
-                )
                 desired = plan.targets
                 self.group_records = plan.group_records
                 self.cycle_count += 1
