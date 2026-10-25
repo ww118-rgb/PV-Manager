@@ -1,3 +1,9 @@
+## Verbraucher einrichten mit aufklappbaren Bereichen (0.3.1b2)
+
+Unter **Konfigurieren → Verbraucher einrichten** wählst du einen bestehenden Verbraucher oder legst einen neuen an. Anschließend öffnet sich **eine einzige Formularseite** mit den Bereichen Grundlagen, Ansteuerung, Messwerte/Anforderung und erweiterte Geräteeinstellungen. Zusätzliche Dropdown-Felder „Weiter oder Zurück“ gibt es nicht mehr. Der Grundlagenbereich ist direkt geöffnet; technische Zusätze lassen sich bei Bedarf aufklappen. Erst nach Bestätigung der Angaben wird gespeichert. Bei Fehlern bleibt das Formular mit den bereits eingegebenen Daten geöffnet.
+
+Beim Bearbeiten bleiben Geräte-ID, Modbus-/HA-Entitäten und physische Gerätezeiten erhalten, sofern du sie nicht änderst. Regelkern, Prioritätenverteilung und Schreibablauf sind unverändert.
+
 ## Neue Datenpunktverwaltung ab 0.3.1b1
 
 Unter **Konfigurieren** gibt es übersichtliche Bereiche für Anlage, Verbraucher, Datenpunkte, Verbindungen, Diagnose und Expertenfunktionen. Unter **Datenpunkte → Modbus-Lesesensor anlegen oder bearbeiten** kann ein vorhandener Sensor ausgewählt oder ein neuer begonnen werden. Im selben Formular lassen sich Adresse, FC03/FC04, Datentyp, Bytefolge, Skalierung, Offset, Einheit und Pollintervall anpassen. Über **Verbindung und Register testen** wird die **noch nicht gespeicherte Eingabe** testweise gelesen. Das Ergebnis enthält den physikalisch dekodierten Wert und die Rohregister; beim Fehlschlag bleiben die Eingaben zum Korrigieren offen. Danach kann erneut getestet werden. Erst **Geprüfte Einstellungen speichern** übernimmt den Sensor dauerhaft und lädt die Integration wie bei anderen Optionsänderungen neu. Nach jeder technischen Änderung ist ein neuer erfolgreicher Test erforderlich. Testen schreibt **niemals** Register.

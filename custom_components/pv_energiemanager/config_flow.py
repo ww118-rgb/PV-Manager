@@ -5,13 +5,14 @@ from uuid import uuid4
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.data_entry_flow import section
 from homeassistant.core import callback
 from homeassistant.helpers import selector
 
 from .modbus_codec import TYPE_WIDTH, WORD_ORDER, decode_registers
 from .modbus_validation import validate_connection, validate_read_point
 from .modbus_writer import validate_write_point
-from .setup_wizard import merge_consumer, check_consumer_setup, source_power_w, signed_grid_preview, actuator_compatibility_error, suggested_minimum_power
+from .setup_wizard import check_consumer_setup, source_power_w, signed_grid_preview, actuator_compatibility_error, suggested_minimum_power
 
 from .const import (
     DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE,
@@ -392,287 +393,194 @@ class PVOptionsFlow(config_entries.OptionsFlow):
             "interval": str(cfg["interval_s"]), "reserve": str(cfg["reserve_w"]),
         }
 
-    @staticmethod
-    def _quick_navigation_schema(*, can_back=True):
-        """Native HA forms lack a Back button; offer a simple dropdown instead."""
-        opts = [selector.SelectOptionDict(value="next", label="Weiter")]
-        if can_back:
-            opts.append(selector.SelectOptionDict(value="back", label="Zurück – Angaben bearbeiten"))
-        return vol.Optional("wizard_navigation", default="next"), selector.SelectSelector(
-            selector.SelectSelectorConfig(options=opts, mode="dropdown"))
-
     async def async_step_quick_consumer_choose(self, user_input=None):
+        """New and existing consumers use exactly the same editable form."""
         devices = self._devices()
         if user_input is not None:
             chosen = user_input["consumer"]
-            self._quick_old = next((dict(d) for d in devices if d["id"] == chosen), {})
-            self._quick_basics = {}
-            self._quick_output = {}
-            self._quick_conversion = {}
-            self._quick_feedback = {}
-            return await self.async_step_quick_consumer_basics()
-        options = [selector.SelectOptionDict(value="new", label="Neuen Verbraucher anlegen")]
-        options.extend(selector.SelectOptionDict(value=d["id"], label=f"{d['name']} bearbeiten")
-                       for d in devices)
+            old = next((dict(d) for d in devices if d["id"] == chosen), None)
+                  if chosen != "new" else None
+            if chosen != "new" and old is None:
+                return self.async_abort(reason="no_devices")
+            self._quick_consumer_old = old or {}
+            self._quick_consumer_draft = dict(self._quick_consumer_old)
+            return await self.async_step_quick_consumer_form()
+        choices = [selector.SelectOptionDict(
+            value="new", label="Neuen Verbraucher anlegen")]
+        choices.extend(selector.SelectOptionDict(
+            value=d["id"], label=f"{d['name']} bearbeiten") for d in devices)
         return self.async_show_form(
             step_id="quick_consumer_choose",
             data_schema=vol.Schema({
                 vol.Required("consumer", default="new"):
                     selector.SelectSelector(selector.SelectSelectorConfig(
-                        options=options, mode="dropdown"))
+                        options=choices, mode="dropdown"))
             }),
         )
 
-    async def async_step_quick_consumer_basics(self, user_input=None):
-        old = self._quick_old
-        if user_input is not None:
-            basics = dict(user_input)
-            navigating = basics.pop("wizard_navigation", "next")
-            if navigating == "back":
-                self._quick_basics = basics  # keep edits for the next visit
-                return await self.async_step_quick_consumer_choose()
-            if int(basics["max_w"]) < int(basics["min_w"]):
-                return self.async_show_form(
-                    step_id="quick_consumer_basics", errors={"base": "limits"},
-                    data_schema=self._quick_basic_schema(basics),
-                )
-            self._quick_basics = basics
-            if basics["kind"] == TYPE_STEPPED:
-                return await self.async_step_quick_consumer_steps()
-            return await self.async_step_quick_consumer_output()
-        return self.async_show_form(
-            step_id="quick_consumer_basics", data_schema=self._quick_basic_schema({**old, **self._quick_basics}),
-        )
+    @staticmethod
+    def _quick_consumer_schema(values: dict):
+        """Native Home Assistant expandable sections; no navigation dropdown.
 
-    def _quick_basic_schema(self, d):
-        nav_key, nav_sel = self._quick_navigation_schema()
+        Required section keys intentionally have NO outer default={}. Home
+        Assistant must use the defaults of the nested fields when editing.
+        """
+        d = values
+        def optional_entity(key, domains):
+            marker = (vol.Optional(key, description={
+                "suggested_value": d[key],
+            }) if d.get(key) else vol.Optional(key))
+            return marker, _entity(domains)
+
         return vol.Schema({
-            vol.Required("name", default=d.get("name", "Neuer Verbraucher")): selector.TextSelector(),
-            vol.Required("kind", default=d.get("kind", TYPE_CONTINUOUS)):
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value=TYPE_CONTINUOUS, label="Stufenlos (Watt/Ampere)"),
-                    selector.SelectOptionDict(value=TYPE_STEPPED, label="Feste Leistungsstufen"),
-                    selector.SelectOptionDict(value=TYPE_ONOFF, label="Nur Ein / Aus"),
-                ], mode="dropdown")),
-            vol.Required("priority", default=d.get("priority", 2)): _num(1, 10),
-            vol.Required("subpriority", default=d.get("subpriority", 1)): _num(1, 99),
-            vol.Required("min_w", default=d.get("min_w", 1400)): _num(0, 100000, 10),
-            vol.Required("max_w", default=d.get("max_w", 11000)): _num(1, 100000, 10),
-            nav_key: nav_sel,
-        })
-
-    async def async_step_quick_consumer_steps(self, user_input=None):
-        if user_input is not None:
-            self._quick_basics["steps_w"] = user_input["steps_w"]
-            if user_input.get("wizard_navigation") == "back":
-                return await self.async_step_quick_consumer_basics()
-            return await self.async_step_quick_consumer_output()
-        nav_key, nav_sel = self._quick_navigation_schema()
-        return self.async_show_form(
-            step_id="quick_consumer_steps", data_schema=vol.Schema({
-                vol.Required("steps_w", default=self._quick_basics.get("steps_w", self._quick_old.get("steps_w", "500,1000,1500,2000"))):
+            vol.Required("basics"): section(vol.Schema({
+                vol.Required("name", default=d.get("name", "Neuer Verbraucher")):
                     selector.TextSelector(),
-                nav_key: nav_sel,
-            }),
-        )
-
-    async def async_step_quick_consumer_output(self, user_input=None):
-        d = self._quick_old
-        kind = self._quick_basics["kind"]
-        if user_input is not None:
-            nav = user_input.get("wizard_navigation", "next")
-            self._quick_output = {k: v for k, v in user_input.items() if k != "wizard_navigation"}
-            if nav == "back":
-                if kind == TYPE_STEPPED:
-                    return await self.async_step_quick_consumer_steps()
-                return await self.async_step_quick_consumer_basics()
-            if kind != TYPE_ONOFF and not user_input.get("power_output"):
-                return self.async_show_form(step_id="quick_consumer_output",
-                                            data_schema=self._quick_output_schema(user_input),
-                                            errors={"base": "missing_power_output"})
-            if kind == TYPE_ONOFF and not user_input.get("switch_output"):
-                return self.async_show_form(step_id="quick_consumer_output",
-                                            data_schema=self._quick_output_schema(user_input),
-                                            errors={"base": "missing_switch"})
-            if kind != TYPE_ONOFF and user_input["output_unit"] == "A":
-                return await self.async_step_quick_consumer_conversion()
-            return await self.async_step_quick_consumer_feedback()
-        return self.async_show_form(
-            step_id="quick_consumer_output", data_schema=self._quick_output_schema({**d, **self._quick_output}),
-        )
-
-    def _quick_output_schema(self, d):
-        kind = self._quick_basics["kind"]
-        nav_key, nav_sel = self._quick_navigation_schema()
-        out = {}
-        if kind != TYPE_ONOFF:
-            key = (vol.Optional("power_output", description={"suggested_value": d.get("power_output")})
-                   if d.get("power_output") else vol.Optional("power_output"))
-            out[key] = _entity(["number", "input_number"])
-            out[vol.Required("output_unit", default=d.get("output_unit", "W"))] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="W", label="Watt (W)"),
-                    selector.SelectOptionDict(value="kW", label="Kilowatt (kW)"),
-                    selector.SelectOptionDict(value="A", label="Ampere (A)"),
-                ], mode="dropdown")))
-        else:
-            out[vol.Required("output_unit", default="W")] = (
-                selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                    selector.SelectOptionDict(value="W", label="Watt (Ein/Aus)")
-                ], mode="dropdown")))
-        key = (vol.Optional("switch_output", description={"suggested_value": d.get("switch_output")})
-               if d.get("switch_output") else vol.Optional("switch_output"))
-        out[key] = _entity(["switch", "input_boolean"])
-        out[nav_key] = nav_sel
-        return vol.Schema(out)
-
-    async def async_step_quick_consumer_conversion(self, user_input=None):
-        if user_input is not None:
-            self._quick_conversion = {k: v for k, v in user_input.items() if k != "wizard_navigation"}
-            if user_input.get("wizard_navigation") == "back":
-                return await self.async_step_quick_consumer_output()
-            return await self.async_step_quick_consumer_feedback()
-        d = {**self._quick_old, **self._quick_conversion}
-        nav_key, nav_sel = self._quick_navigation_schema()
-        return self.async_show_form(
-            step_id="quick_consumer_conversion", data_schema=vol.Schema({
-                vol.Required("phases", default=str(d.get("phases", 3))):
-                    selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                        selector.SelectOptionDict(value="1", label="1 Phase"),
-                        selector.SelectOptionDict(value="3", label="3 Phasen"),
-                    ], mode="dropdown")),
+                vol.Required("kind", default=d.get("kind", TYPE_CONTINUOUS)):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(
+                                value=TYPE_CONTINUOUS,
+                                label="Stufenlos (Watt/Ampere)"),
+                            selector.SelectOptionDict(
+                                value=TYPE_STEPPED,
+                                label="Feste Leistungsstufen"),
+                            selector.SelectOptionDict(
+                                value=TYPE_ONOFF, label="Nur Ein / Aus"),
+                        ], mode="dropdown")),
+                vol.Required("priority", default=d.get("priority", 2)):
+                    _num(1, 10),
+                vol.Required("subpriority", default=d.get("subpriority", 1)):
+                    _num(1, 99),
+                vol.Required("min_w", default=d.get("min_w", 1400)):
+                    _num(0, 100000, 10),
+                vol.Required("max_w", default=d.get("max_w", 11000)):
+                    _num(1, 100000, 10),
+                vol.Optional("steps_w", default=d.get(
+                    "steps_w", "500,1000,1500,2000")):
+                    selector.TextSelector(),
+            }), {"collapsed": False}),
+            vol.Required("actuator"): section(vol.Schema({
+                optional_entity("power_output", ["number", "input_number"])[0]:
+                    optional_entity("power_output", ["number", "input_number"])[1],
+                optional_entity("switch_output", ["switch", "input_boolean"])[0]:
+                    optional_entity("switch_output", ["switch", "input_boolean"])[1],
+                vol.Required("output_unit", default=d.get("output_unit", "W")):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=["W", "kW", "A"], mode="dropdown")),
+                vol.Required("phases", default=str(d.get("phases", 1))):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=["1", "3"], mode="dropdown")),
                 vol.Required("voltage", default=d.get("voltage", 230)):
                     _num(100, 260),
-                nav_key: nav_sel,
-            }),
-        )
+            }), {"collapsed": True}),
+            vol.Required("feedback"): section(vol.Schema({
+                optional_entity("actual_entity", [
+                    "sensor", "number", "input_number"])[0]:
+                    optional_entity("actual_entity", [
+                        "sensor", "number", "input_number"])[1],
+                optional_entity("demand_entity", [
+                    "binary_sensor", "switch", "input_boolean"])[0]:
+                    optional_entity("demand_entity", [
+                        "binary_sensor", "switch", "input_boolean"])[1],
+            }), {"collapsed": True}),
+            vol.Required("timing"): section(vol.Schema({
+                vol.Required("start_delay_s", default=d.get("start_delay_s", 0)):
+                    _num(0, 3600),
+                vol.Required("min_on_s", default=d.get("min_on_s", 0)):
+                    _num(0, 86400),
+                vol.Required("min_off_s", default=d.get("min_off_s", 0)):
+                    _num(0, 86400),
+            }), {"collapsed": True}),
+            vol.Required("confirm", default=False): selector.BooleanSelector(),
+        })
 
-    async def async_step_quick_consumer_feedback(self, user_input=None):
-        old = self._quick_old
-        if user_input is not None:
-            self._quick_feedback = {k: v for k, v in user_input.items() if k != "wizard_navigation"}
-            if user_input.get("wizard_navigation") == "back":
-                if self._quick_output.get("output_unit") == "A" and self._quick_basics["kind"] != TYPE_ONOFF:
-                    return await self.async_step_quick_consumer_conversion()
-                return await self.async_step_quick_consumer_output()
-            return await self.async_step_quick_consumer_review()
-        old = {**old, **self._quick_feedback}
-        nav_key, nav_sel = self._quick_navigation_schema()
-        return self.async_show_form(
-            step_id="quick_consumer_feedback", data_schema=vol.Schema({
-                (vol.Optional("actual_entity", description={"suggested_value": old.get("actual_entity")})
-                 if old.get("actual_entity") else vol.Optional("actual_entity")):
-                    _entity(["sensor", "number", "input_number"]),
-                (vol.Optional("demand_entity", description={"suggested_value": old.get("demand_entity")})
-                 if old.get("demand_entity") else vol.Optional("demand_entity")):
-                    _entity(["binary_sensor", "switch", "input_boolean"]),
-                nav_key: nav_sel,
-            }),
-        )
+    @staticmethod
+    def _quick_consumer_flatten(old: dict, nested: dict) -> dict:
+        """Merge a complete sectioned submission without restoring cleared IDs."""
+        candidate = dict(old)
+        # Closed sections may not submit keys on some HA frontend versions.
+        # Preserve their previous values unless that section was submitted.
+        for section_name, optional_keys in (
+            ("actuator", ("power_output", "switch_output")),
+            ("feedback", ("actual_entity", "demand_entity")),
+        ):
+            if section_name in nested:
+                for key in optional_keys:
+                    candidate.pop(key, None)
+        for section_name in ("basics", "actuator", "feedback", "timing"):
+            candidate.update(nested.get(section_name, {}))
+        if candidate.get("kind") == TYPE_ONOFF:
+            candidate.pop("power_output", None)
+            candidate["output_unit"] = "W"
+        candidate["id"] = old.get("id", uuid4().hex[:12])
+        return candidate
 
-    def _quick_consumer_candidate(self):
-        old = self._quick_old
-        device = merge_consumer(old, self._quick_basics,
-                                self._quick_output, self._quick_feedback,
-                                self._quick_conversion)
-        device["id"] = old.get("id", uuid4().hex[:12])
-        return device
-
-    def _quick_consumer_info(self, device):
-        actor = device.get("switch_output" if device["kind"] == TYPE_ONOFF else "power_output")
-        actor_state = self.hass.states.get(actor) if actor else None
-        actual = device.get("actual_entity")
-        actual_state = self.hass.states.get(actual) if actual else None
-        warnings = check_consumer_setup(
-            device,
-            output_state=actor_state.state if actor_state else None,
-            actual_state=actual_state.state if actual_state else None,
-        )
-        if device.get("output_unit") == "A":
-            scale = f"{device.get('phases', 1)} × {device.get('voltage', 230)} V pro A"
-        else:
-            scale = device.get("output_unit", "W")
-        suggestion = suggested_minimum_power(device, actor_state)
-        if suggestion is not None and suggestion != int(device["min_w"]):
-            hint = (f"Die eingestellten {device['min_w']} W sind nicht direkt regelbar. "
-                    f"Vorschlag: mindestens {suggestion} W. "
-                    "Wähle 'Mindestleistung automatisch anpassen' oder "
-                    "'Leistungsgrenzen bearbeiten'.")
-        else:
-            hint = "Mindestleistung und Stellstufen bitte kontrollieren."
-        return {
-            "name": device["name"],
-            "range": f"{int(device['min_w']):,} bis {int(device['max_w']):,} W".replace(",", "."),
-            "priority": f"{int(device['priority'])}.{int(device['subpriority'])}",
-            "actor": actor or "KEIN AKTOR",
-            "scale": scale,
-            "actual": actual or "Kein Sensor",
-            "demand": device.get("demand_entity") or "Immer Ja",
-            "warnings": " | ".join(warnings) if warnings else "Keine offensichtlichen Zuordnungswarnungen",
-            "range_hint": hint,
-        }
-
-    async def async_step_quick_consumer_review(self, user_input=None):
-        candidate = self._quick_consumer_candidate()
+    async def async_step_quick_consumer_form(self, user_input=None):
+        """Single screen: expand, edit, validate, save. No next/back fields."""
+        if not hasattr(self, "_quick_consumer_old"):
+            return await self.async_step_quick_consumer_choose()
         errors = {}
+        description = ("Bitte Ausgang, Gerätegrenzen und ggf. Aus-/Pausewert "
+                       "vor dem Speichern prüfen.")
         if user_input is not None:
-            action = user_input.get("review_action", "save")
-            if action == "edit_limits":
-                return await self.async_step_quick_consumer_basics()
-            if action == "edit_output":
-                return await self.async_step_quick_consumer_output()
-            if action == "edit_feedback" or action == "back":
-                return await self.async_step_quick_consumer_feedback()
-            if action == "fix_minimum":
-                actor_id = candidate.get("power_output")
-                actor_state = self.hass.states.get(actor_id) if actor_id else None
-                minimum = suggested_minimum_power(candidate, actor_state)
-                if minimum is None or minimum <= 0 or minimum > candidate["max_w"]:
-                    errors["base"] = "actuator_limits_mismatch"
-                else:
-                    self._quick_basics["min_w"] = minimum
-                    return await self.async_step_quick_consumer_review()
-            if not errors:
+            candidate = self._quick_consumer_flatten(
+                self._quick_consumer_old, user_input)
+            # Re-render the same editable form on errors, preserving changes.
+            self._quick_consumer_draft = candidate
+            try:
                 normalized, error = _validate_device(candidate)
-                if error:
-                    errors["base"] = error
-                else:
-                    actuator_id = (normalized.get("switch_output") if normalized["kind"] == TYPE_ONOFF
-                                   else normalized.get("power_output"))
-                    actuator_state = self.hass.states.get(actuator_id) if actuator_id else None
-                    mismatch = actuator_compatibility_error(normalized, actuator_state)
-                    if mismatch:
-                        errors["base"] = mismatch
-                    others = {d.get(key) for d in self._devices()
-                              if d["id"] != normalized["id"]
-                              for key in ("power_output", "switch_output") if d.get(key)}
-                    if any(normalized.get(k) in others for k in ("power_output", "switch_output")
-                           if normalized.get(k)):
-                        errors["base"] = "duplicate_output"
-                    elif not errors and not user_input.get("confirm"):
-                        errors["base"] = "confirm_required"
-                    if not errors:
-                        if self._quick_old:
-                            devices = [normalized if d["id"] == normalized["id"] else d
-                                       for d in self._devices()]
-                        else:
-                            devices = [*self._devices(), normalized]
-                        return self._save(devices=devices)
+            except (KeyError, ValueError, TypeError, OverflowError):
+                normalized, error = None, "limits"
+            if error:
+                errors["base"] = error
+            else:
+                actor = normalized.get(
+                    "switch_output" if normalized["kind"] == TYPE_ONOFF
+                    else "power_output")
+                actor_state = self.hass.states.get(actor) if actor else None
+                mismatch = actuator_compatibility_error(normalized, actor_state)
+                if mismatch:
+                    errors["base"] = mismatch
+                    if mismatch == "actuator_step_mismatch":
+                        minimum = suggested_minimum_power(
+                            normalized, actor_state)
+                        if minimum is not None:
+                            description = (
+                                f"Die konfigurierte Mindestleistung ist nicht "
+                                f"darstellbar. Nächster zulässiger Wert: "
+                                f"{minimum} W. Im Bereich Grundlagen korrigieren."
+                            )
+                others = {
+                    d.get(key)
+                    for d in self._devices()
+                    if d["id"] != normalized["id"]
+                    for key in ("power_output", "switch_output")
+                    if d.get(key)
+                }
+                if actor in others or any(
+                    normalized.get(key) in others
+                    for key in ("power_output", "switch_output")
+                    if normalized.get(key)
+                ):
+                    errors["base"] = "duplicate_output"
+                if not errors and not user_input.get("confirm"):
+                    errors["base"] = "confirm_required"
+                if not errors:
+                    if self._quick_consumer_old:
+                        devices = [
+                            normalized if d["id"] == normalized["id"] else d
+                            for d in self._devices()
+                        ]
+                    else:
+                        devices = [*self._devices(), normalized]
+                    return self._save(devices=devices)
+
         return self.async_show_form(
-            step_id="quick_consumer_review",
-            data_schema=vol.Schema({
-                vol.Required("review_action", default="save"):
-                    selector.SelectSelector(selector.SelectSelectorConfig(options=[
-                        selector.SelectOptionDict(value="save", label="Verbraucher speichern"),
-                        selector.SelectOptionDict(value="fix_minimum", label="Mindestleistung automatisch anpassen"),
-                        selector.SelectOptionDict(value="edit_limits", label="Zurück: Leistungsgrenzen bearbeiten"),
-                        selector.SelectOptionDict(value="edit_output", label="Zurück: Sollwertaktor bearbeiten"),
-                        selector.SelectOptionDict(value="edit_feedback", label="Zurück: Istleistung / Anforderung bearbeiten"),
-                    ], mode="dropdown")),
-                vol.Required("confirm", default=False): selector.BooleanSelector(),
-            }),
+            step_id="quick_consumer_form",
+            data_schema=self._quick_consumer_schema(self._quick_consumer_draft),
             errors=errors,
-            description_placeholders=self._quick_consumer_info(candidate),
+            description_placeholders={"hint": description},
         )
 
     async def async_step_quick_diagnostics(self, user_input=None):

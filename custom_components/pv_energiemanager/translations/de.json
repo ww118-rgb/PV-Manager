@@ -270,64 +270,7 @@
         "data": {
           "consumer": "Verbraucher auswählen"
         },
-        "description": "Bestehende Verbraucher können ohne Verlust ihrer IDs neu konfiguriert werden."
-      },
-      "quick_consumer_basics": {
-        "title": "Verbraucher – Eckdaten (1/4)",
-        "data": {
-          "name": "Name",
-          "kind": "Regelungsart",
-          "priority": "Hauptpriorität (1 zuerst)",
-          "subpriority": "Unterpriorität",
-          "min_w": "Mindestleistung im Betrieb (W)",
-          "max_w": "Maximalleistung (W)",
-          "wizard_navigation": "Navigation (Weiter oder Zurück)"
-        },
-        "description": "Beispiel Wallbox: 6 A × 230 V × 3 Phasen = 4.140 W Mindestleistung. Heizstab oder Wärmepumpe können völlig andere Grenzen besitzen."
-      },
-      "quick_consumer_steps": {
-        "title": "Verbraucher – zulässige Leistungsstufen",
-        "data": {
-          "steps_w": "Stufen in W, mit Kommas getrennt",
-          "wizard_navigation": "Navigation (Weiter oder Zurück)"
-        },
-        "description": "Beispiel 500,1000,1500,2000. Die Stufen dürfen den Maximalwert nicht überschreiten."
-      },
-      "quick_consumer_output": {
-        "title": "Verbraucher – Ansteuerung (2/4)",
-        "data": {
-          "power_output": "Sollwert-Entität auswählen (z. B. Modbus-Schreibaktor)",
-          "switch_output": "Ein-/Aus-Schalter (optional, außer bei Ein/Aus)",
-          "output_unit": "Einheit des Aktors",
-          "wizard_navigation": "Navigation (Weiter oder Zurück)"
-        },
-        "description": "Hier erscheinen Modbus-Schreibaktoren genauso wie andere HA-Entitäten. Muss zuerst ein neuer Modbus-Schreibaktor angelegt werden: unter „Erweiterte Einstellungen → Modbus-Schreibaktor hinzufügen“. Wähle die tatsächliche Geräte-Einheit."
-      },
-      "quick_consumer_conversion": {
-        "title": "Verbraucher – Umrechnung Watt nach Ampere",
-        "data": {
-          "phases": "Anzahl Phasen",
-          "voltage": "Spannung pro Phase (V)",
-          "wizard_navigation": "Navigation (Weiter oder Zurück)"
-        },
-        "description": "Der Energiemanager berechnet immer Watt. Bei Ampere-Aktoren wandelt er anhand dieser Werte W → A um und rundet auf die Stufen des Aktors ab."
-      },
-      "quick_consumer_feedback": {
-        "title": "Verbraucher – Istwerte und Bedarf (3/4)",
-        "data": {
-          "actual_entity": "Istleistung (W/kW, empfohlen)",
-          "demand_entity": "Anforderung / Ladebedarf (Ein/Aus, optional)",
-          "wizard_navigation": "Navigation (Weiter oder Zurück)"
-        },
-        "description": "Ohne Istleistungssensor zeigt der Manager „Unbekannt“, nicht 0 W. Ohne Anforderungssensor wird „Ja“ angenommen, auch wenn das Gerät gerade nicht laden möchte."
-      },
-      "quick_consumer_review": {
-        "title": "Verbraucher – Zusammenfassung (4/4)",
-        "data": {
-          "confirm": "Zuordnungen geprüft – Verbraucher speichern",
-          "review_action": "Was möchtest du tun?"
-        },
-        "description": "**{name}**, Priorität {priority}, {range}. Sollwertaktor: {actor}; Ausgabe: {scale}. Istleistung: {actual}; Anforderung: {demand}. **Prüfhinweise:** {warnings}. Für die Inbetriebnahme erst sichere Pause/Abschaltwerte und echte Istwerte prüfen. **Hilfe zu den Stellstufen:** {range_hint}"
+        "description": "Wähle einen vorhandenen Verbraucher zum direkten Bearbeiten oder lege einen neuen an. Danach öffnet sich ein Formular mit aufklappbaren Bereichen, ganz ohne Weiter-/Zurück-Dropdown."
       },
       "quick_diagnostics": {
         "title": "Einrichtungsprüfung – ohne Steuerbefehle",
@@ -396,6 +339,56 @@
           "unit": "Physikalische Einheit, z. B. W",
           "poll_seconds": "Abfrageintervall in Sekunden",
           "wizard_action": "Aktion nach dem Ausfüllen"
+        }
+      },
+      "quick_consumer_form": {
+        "title": "Verbraucher einrichten und bearbeiten",
+        "description": "Alle Einstellungen auf einer Seite. Öffne nur die Bereiche, die du benötigst. **Hinweis:** {hint}",
+        "data": {
+          "confirm": "Geräteeinstellungen geprüft – Verbraucher speichern"
+        },
+        "sections": {
+          "basics": {
+            "name": "Grundlagen und Leistungsgrenzen",
+            "description": "Verbraucherart, Name, Priorität und Leistungsgrenzen. Die Liste der Leistungsstufen wird nur bei „Feste Leistungsstufen“ verwendet.",
+            "data": {
+              "name": "Name des Verbrauchers",
+              "kind": "Regelungsart",
+              "priority": "Hauptpriorität (1 = höchste)",
+              "subpriority": "Unterpriorität (1 = erste)",
+              "min_w": "Mindestleistung (W)",
+              "max_w": "Maximalleistung (W)",
+              "steps_w": "Leistungsstufen (W, nur für gestufte Geräte)"
+            }
+          },
+          "actuator": {
+            "name": "Ansteuerung und Aktoren",
+            "description": "Bestehende Home-Assistant-Entität auswählen. Für Modbus-Schreibaktoren den zuvor unter Datenpunkte angelegten Ausgang verwenden. Bei Ampere die passende Phasenanzahl und Spannung einstellen. Bei Ein/Aus-Geräten nur den Schaltausgang verwenden.",
+            "data": {
+              "power_output": "Leistungs-Sollwertaktor (number)",
+              "switch_output": "Schaltausgang (switch, falls vorhanden)",
+              "output_unit": "Einheit des Sollwertaktors",
+              "phases": "Phasen für die Watt-Ampere-Umrechnung",
+              "voltage": "Spannung pro Phase (V)"
+            }
+          },
+          "feedback": {
+            "name": "Messwerte und Anforderung",
+            "description": "Istleistung ist für die Rückmeldung empfohlen. Ohne Istsensor gilt die Leistung als unbekannt. Ohne Anforderungssensor wird der Verbraucher als anfordernd behandelt.",
+            "data": {
+              "actual_entity": "Istleistungssensor (W/kW)",
+              "demand_entity": "Anforderung (Ein/Aus)"
+            }
+          },
+          "timing": {
+            "name": "Erweiterte Geräteeinstellungen",
+            "description": "Nur für Geräte, die Startverzögerungen oder echte Mindestlauf-/Pausenzeiten benötigen. Diese Angaben sind Hardwareanforderungen und keine zusätzlichen EMS-Regeltimer.",
+            "data": {
+              "start_delay_s": "Startverzögerung (s)",
+              "min_on_s": "Mindestlaufzeit (s)",
+              "min_off_s": "Mindestauszeit (s)"
+            }
+          }
         }
       }
     },

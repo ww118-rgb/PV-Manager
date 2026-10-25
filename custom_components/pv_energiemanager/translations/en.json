@@ -270,64 +270,7 @@
         "data": {
           "consumer": "Select consumer"
         },
-        "description": "Existing consumers retain their stable IDs."
-      },
-      "quick_consumer_basics": {
-        "title": "Consumer – power and priorities (1/4)",
-        "data": {
-          "name": "Name",
-          "kind": "Control type",
-          "priority": "Main priority (1 first)",
-          "subpriority": "Subpriority",
-          "min_w": "Minimum operating power (W)",
-          "max_w": "Maximum power (W)",
-          "wizard_navigation": "Navigation (Next / Back)"
-        },
-        "description": "A three-phase 6 A charger at 230 V requires approximately 4,140 W minimum. Different devices have different limits."
-      },
-      "quick_consumer_steps": {
-        "title": "Consumer – permitted power steps",
-        "data": {
-          "steps_w": "Power steps in W, comma-separated",
-          "wizard_navigation": "Navigation (Next / Back)"
-        },
-        "description": "Example 500,1000,1500,2000."
-      },
-      "quick_consumer_output": {
-        "title": "Consumer – control output (2/4)",
-        "data": {
-          "power_output": "Setpoint entity (including Modbus number)",
-          "switch_output": "On/off switch (optional, required for on/off)",
-          "output_unit": "Actuator unit",
-          "wizard_navigation": "Navigation (Next / Back)"
-        },
-        "description": "Choose an existing HA entity, including a native Modbus write number. Add a new Modbus write point under Advanced settings first if needed."
-      },
-      "quick_consumer_conversion": {
-        "title": "Consumer – convert W to A",
-        "data": {
-          "phases": "Phases",
-          "voltage": "Voltage per phase (V)",
-          "wizard_navigation": "Navigation (Next / Back)"
-        },
-        "description": "All internal budgets remain in W; outputs in A are rounded down to configured actuator steps."
-      },
-      "quick_consumer_feedback": {
-        "title": "Consumer – feedback and demand (3/4)",
-        "data": {
-          "actual_entity": "Measured power (W/kW, recommended)",
-          "demand_entity": "Demand / load requested (optional)",
-          "wizard_navigation": "Navigation (Next / Back)"
-        },
-        "description": "Without a measured power sensor actual load is unknown. Without a demand switch, demand is always yes."
-      },
-      "quick_consumer_review": {
-        "title": "Consumer – review (4/4)",
-        "data": {
-          "confirm": "I reviewed the mappings – save",
-          "review_action": "What would you like to do?"
-        },
-        "description": "**{name}**, priority {priority}, {range}. Actuator: {actor}, unit: {scale}. Measured power: {actual}. Demand: {demand}. **Warnings:** {warnings}. Check safe stop semantics and actual measurements before activation. **Step-size guidance:** {range_hint}"
+        "description": "Select a consumer to edit, or add a new one. One form with expandable sections replaces the previous next/back dropdown."
       },
       "quick_diagnostics": {
         "title": "Setup diagnostics – no writes",
@@ -396,6 +339,56 @@
           "unit": "Physical unit, e.g. W",
           "poll_seconds": "Polling interval in seconds",
           "wizard_action": "Action after editing"
+        }
+      },
+      "quick_consumer_form": {
+        "title": "Set up or edit consumer",
+        "description": "All settings are on one page. Expand only the sections you need. **Note:** {hint}",
+        "data": {
+          "confirm": "Device settings checked – save consumer"
+        },
+        "sections": {
+          "basics": {
+            "name": "Basics and power limits",
+            "description": "Device type, name, priority and power limits. Power stages are used only for stepped consumers.",
+            "data": {
+              "name": "Consumer name",
+              "kind": "Control type",
+              "priority": "Main priority (1 = highest)",
+              "subpriority": "Subpriority (1 = first)",
+              "min_w": "Minimum power (W)",
+              "max_w": "Maximum power (W)",
+              "steps_w": "Power stages (W, stepped devices only)"
+            }
+          },
+          "actuator": {
+            "name": "Actuation and outputs",
+            "description": "Choose existing Home Assistant entities. For Modbus use a write actuator configured under Data points. For ampere outputs set phases and voltage. For on/off consumers use the switch output.",
+            "data": {
+              "power_output": "Power setpoint actuator (number)",
+              "switch_output": "Switch output (if available)",
+              "output_unit": "Setpoint actuator unit",
+              "phases": "Phases for power-to-current conversion",
+              "voltage": "Voltage per phase (V)"
+            }
+          },
+          "feedback": {
+            "name": "Measurements and demand",
+            "description": "Actual power feedback is recommended. Without an actual power sensor the physical power is unknown. Without a demand signal the consumer is assumed to request power.",
+            "data": {
+              "actual_entity": "Actual power sensor (W/kW)",
+              "demand_entity": "Demand (on/off)"
+            }
+          },
+          "timing": {
+            "name": "Advanced device parameters",
+            "description": "Only for devices requiring start delay or physical minimum-on/minimum-off periods. These are device constraints, not extra EMS controllers.",
+            "data": {
+              "start_delay_s": "Start delay (s)",
+              "min_on_s": "Minimum on time (s)",
+              "min_off_s": "Minimum off time (s)"
+            }
+          }
         }
       }
     },

@@ -58,6 +58,11 @@ def import_file(name):
 
 class WizardFlowTests(unittest.TestCase):
     def setUp(self):
+        class SectionStub:
+            def __init__(self, schema, options=None):
+                self.schema = schema
+                self.options = options or {}
+
         mock_modules = {
             'voluptuous': mod('voluptuous', Schema=lambda d: d, Required=Marker,
                                Optional=Marker),
@@ -65,6 +70,8 @@ class WizardFlowTests(unittest.TestCase):
             'homeassistant.config_entries': mod('homeassistant.config_entries',
                  ConfigFlow=DummyFlow, OptionsFlow=DummyFlow),
             'homeassistant.core': mod('homeassistant.core', callback=lambda f: f),
+            'homeassistant.data_entry_flow': mod(
+                'homeassistant.data_entry_flow', section=SectionStub),
             'homeassistant.helpers': mod('homeassistant.helpers'),
             'homeassistant.helpers.selector': mod('homeassistant.helpers.selector',
                  EntitySelector=Selector, EntitySelectorConfig=Selector,
@@ -166,188 +173,142 @@ class WizardFlowTests(unittest.TestCase):
         self.assertTrue(saved['data']['grid_export_positive'])
         self.assertEqual(saved['data']['devices'], [])
 
+    def sections(self, **changes):
+        sections = {
+            'basics': {'name':'Wallbox 1','kind':'continuous','priority':2,
+                       'subpriority':1,'min_w':4140,'max_w':11040,
+                       'steps_w':'500,1000,1500,2000'},
+            'actuator': {'power_output':'number.wallbox','output_unit':'A',
+                         'phases':'3','voltage':230},
+            'feedback': {'actual_entity':'sensor.real_power'},
+            'timing': {'start_delay_s':0,'min_on_s':0,'min_off_s':0},
+            'confirm':True,
+        }
+        for name, values in changes.items():
+            sections[name] = values
+        return sections
+
+    def test_consumer_one_form_with_native_sections_not_navigation(self):
+        flow=self.flow()
+        response=self.do_step(flow.async_step_quick_consumer_choose,
+                              {'consumer':'new'})
+        self.assertEqual(response['step_id'],'quick_consumer_form')
+        schema=response['data_schema']
+        self.assertEqual(list(schema),['basics','actuator','feedback',
+                                       'timing','confirm'])
+        for name in ('basics','actuator','feedback','timing'):
+            self.assertTrue(hasattr(schema[name], 'schema'))
+            self.assertNotIn('wizard_navigation',schema[name].schema)
+        self.assertFalse(schema['basics'].options['collapsed'])
+        self.assertTrue(schema['timing'].options['collapsed'])
+        self.assertTrue(schema['feedback'].options['collapsed'])
+
     def test_existing_consumer_can_be_reconfigured_preserving_id(self):
         old = {'id':'old1', 'name':'Wallbox', 'kind':'continuous', 'priority':2,
                'subpriority':1, 'min_w':4140,'max_w':11040,
                'power_output':'number.wallbox', 'output_unit':'A',
                'phases':3, 'voltage':230, 'min_on_s':90}
-        flow = self.flow([old])
-        self.do_step(flow.async_step_quick_consumer_choose, {'consumer':'old1'})
-        self.do_step(flow.async_step_quick_consumer_basics, {'name':'Wallbox 1',
-                 'kind':'continuous', 'priority':1,'subpriority':1,
-                 'min_w':4140,'max_w':11040})
-        self.do_step(flow.async_step_quick_consumer_output, {
-            'power_output':'number.wallbox', 'output_unit':'A'})
-        self.do_step(flow.async_step_quick_consumer_conversion, {'phases':'3','voltage':230})
-        self.do_step(flow.async_step_quick_consumer_feedback, {'actual_entity':'sensor.real_power'})
-        summary = self.do_step(flow.async_step_quick_consumer_review)
-        self.assertIn('number.wallbox', summary['description_placeholders']['actor'])
-        saved = self.do_step(flow.async_step_quick_consumer_review, {'confirm':True})
+        flow=self.flow([old])
+        self.do_step(flow.async_step_quick_consumer_choose,
+                     {'consumer':'old1'})
+        form=self.do_step(flow.async_step_quick_consumer_form)
+        self.assertEqual(form['step_id'],'quick_consumer_form')
+        changed=self.sections(
+            basics={**self.sections()['basics'],'name':'Wallbox 1',
+                    'priority':1},
+            timing={'start_delay_s':0,'min_on_s':90,'min_off_s':0},
+        )
+        saved=self.do_step(flow.async_step_quick_consumer_form,changed)
         self.assertEqual(saved['type'],'create_entry')
         self.assertEqual(len(saved['data']['devices']),1)
-        value = saved['data']['devices'][0]
+        value=saved['data']['devices'][0]
         self.assertEqual(value['id'],'old1')
         self.assertEqual(value['min_on_s'],90)
         self.assertEqual(value['actual_entity'],'sensor.real_power')
+        self.assertEqual(value['name'],'Wallbox 1')
+        self.assertEqual(value['priority'],1)
 
-    def test_review_can_adopt_suggested_minimum_and_save(self):
-        flow = self.flow()
-        self.do_step(flow.async_step_quick_consumer_choose, {'consumer':'new'})
-        self.do_step(flow.async_step_quick_consumer_basics, {
-            'name':'WB1','kind':'continuous','priority':2,'subpriority':1,
-            'min_w':4000,'max_w':11000})
-        self.do_step(flow.async_step_quick_consumer_output, {
-            'power_output':'number.wallbox','output_unit':'A'})
-        self.do_step(flow.async_step_quick_consumer_conversion, {'phases':'3','voltage':230})
-        self.do_step(flow.async_step_quick_consumer_feedback, {'actual_entity':'sensor.real_power'})
-        before = self.do_step(flow.async_step_quick_consumer_review)
-        self.assertIn('4140',before['description_placeholders']['range_hint'])
-        corrected = self.do_step(flow.async_step_quick_consumer_review, {'review_action':'fix_minimum'})
-        self.assertEqual(corrected['type'],'form')
-        self.assertEqual(flow._quick_basics['min_w'],4140)
-        saved = self.do_step(flow.async_step_quick_consumer_review, {'confirm':True})
+    def test_validation_error_retains_every_section_and_is_correctable(self):
+        flow=self.flow()
+        self.do_step(flow.async_step_quick_consumer_choose,{'consumer':'new'})
+        invalid=self.sections(
+            basics={**self.sections()['basics'],'max_w':4000})
+        response=self.do_step(flow.async_step_quick_consumer_form,invalid)
+        self.assertEqual(response['step_id'],'quick_consumer_form')
+        self.assertEqual(response['errors']['base'],'limits')
+        self.assertEqual(flow._quick_consumer_draft['max_w'],4000)
+        corrected=self.sections()
+        saved=self.do_step(flow.async_step_quick_consumer_form,corrected)
         self.assertEqual(saved['type'],'create_entry')
-        self.assertEqual(saved['data']['devices'][0]['min_w'],4140)
+        self.assertEqual(saved['data']['devices'][0]['max_w'],11040)
 
-    def test_summary_back_to_limits_without_losing_output(self):
-        flow = self.flow()
-        self.do_step(flow.async_step_quick_consumer_choose, {'consumer':'new'})
-        self.do_step(flow.async_step_quick_consumer_basics, {
-            'name':'WB1','kind':'continuous','priority':2,'subpriority':1,
-            'min_w':4000,'max_w':11000})
-        self.do_step(flow.async_step_quick_consumer_output, {
-            'power_output':'number.wallbox','output_unit':'A'})
-        self.do_step(flow.async_step_quick_consumer_conversion, {'phases':'3','voltage':230})
-        self.do_step(flow.async_step_quick_consumer_feedback, {'actual_entity':'sensor.real_power'})
-        back = self.do_step(flow.async_step_quick_consumer_review, {'review_action':'edit_limits'})
-        self.assertEqual(back['step_id'], 'quick_consumer_basics')
-        self.assertEqual(flow._quick_basics['min_w'],4000)
-        self.assertEqual(flow._quick_output['power_output'],'number.wallbox')
-        self.assertEqual(flow._quick_feedback['actual_entity'],'sensor.real_power')
-
-    def read_input(self, **kw):
-        result = dict(connection_id='c', name='Netzleistung', address=100,
-                      function_code='3', data_type='uint16', byte_order='ABCD',
-                      scale=1.0, offset=0, unit='W', poll_seconds=5)
-        result.update(kw)
-        return result
-
-    @staticmethod
-    def modbus_stub(values=None, error=None):
-        class Unit:
-            async def read_holding_registers(self, addr, count):
-                if error:
-                    raise ConnectionError(error)
-                return list(values if values is not None else [1250])
-            async def read_input_registers(self, addr, count):
-                return await self.read_holding_registers(addr,count)
-        class Context:
-            async def __aenter__(self):return Unit()
-            async def __aexit__(self,*args):return False
-        return {
-            'homeassistant.components': mod('homeassistant.components'),
-            'homeassistant.components.modbus': mod(
-                'homeassistant.components.modbus',
-                async_get_temporary_unit=lambda *args, **kwargs: Context()),
-            'modbus_connection': mod('modbus_connection',
-                ModbusTcpParams=lambda **kwargs: kwargs),
-        }
-
-    def test_new_modbus_sensor_test_correct_retest_save(self):
+    def test_unconfirmed_and_incompatible_actuator_cannot_be_saved(self):
         flow=self.flow()
-        selection=self.do_step(flow.async_step_quick_read_point_choose,
-                               {'register_id':'new'})
-        self.assertEqual(selection['step_id'],'quick_read_point_form')
-        self.assertEqual(flow.config_entry.options.get('modbus_registers'),None)
-        # Saving before any test is refused and does not create a sensor.
-        denied=self.do_step(flow.async_step_quick_read_point_form,
-                            self.read_input(wizard_action='save'))
-        self.assertEqual(denied['errors']['base'],'read_test_required')
-        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
-        # Successful live test returns to exactly the same editable form.
-        with patch.dict(sys.modules,self.modbus_stub([1250])):
-            result=self.do_step(flow.async_step_quick_read_point_form,
-                                self.read_input(wizard_action='test'))
-        self.assertEqual(result['step_id'],'quick_read_point_form')
-        self.assertIn('1250',result['description_placeholders']['result'])
-        self.assertIsNone(result['errors'].get('base'))
-        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
-        # Corrections require retesting; no stale successful test accepted.
-        refused=self.do_step(flow.async_step_quick_read_point_form,
-                     self.read_input(scale=0.1,wizard_action='save'))
-        self.assertEqual(refused['errors']['base'],'read_test_required')
-        with patch.dict(sys.modules,self.modbus_stub([1250])):
-            retested=self.do_step(flow.async_step_quick_read_point_form,
-                         self.read_input(scale=0.1,wizard_action='test'))
-        self.assertIn('125',retested['description_placeholders']['result'])
-        saved=self.do_step(flow.async_step_quick_read_point_form,
-                           self.read_input(scale=0.1,wizard_action='save'))
-        self.assertEqual(saved['type'],'create_entry')
-        self.assertEqual(len(saved['data']['modbus_registers']),1)
-        self.assertEqual(saved['data']['modbus_registers'][0]['scale'],0.1)
-        self.assertTrue(saved['data']['modbus_registers'][0]['id'])
+        self.do_step(flow.async_step_quick_consumer_choose,{'consumer':'new'})
+        values=self.sections(confirm=False)
+        denied=self.do_step(flow.async_step_quick_consumer_form,values)
+        self.assertEqual(denied['errors']['base'],'confirm_required')
+        wrong=self.sections(
+            actuator={**self.sections()['actuator'],'output_unit':'W'})
+        response=self.do_step(flow.async_step_quick_consumer_form,wrong)
+        self.assertEqual(response['type'],'form')
+        self.assertEqual(response['errors']['base'],'actuator_unit_mismatch')
 
-    def test_failed_modbus_read_can_be_corrected_without_persisting(self):
+    def test_bad_ampere_minimum_suggests_fix_in_same_form(self):
         flow=self.flow()
-        self.do_step(flow.async_step_quick_read_point_choose,{'register_id':'new'})
-        with patch.dict(sys.modules,self.modbus_stub(error='device offline')):
-            failed=self.do_step(flow.async_step_quick_read_point_form,
-                           self.read_input(address=50,wizard_action='test'))
-        self.assertEqual(failed['errors']['base'],'read_test_failed')
-        self.assertIn('device offline',failed['description_placeholders']['result'])
-        self.assertEqual(flow._quick_read_draft['address'],50)
-        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
-        with patch.dict(sys.modules,self.modbus_stub([777])):
-            corrected=self.do_step(flow.async_step_quick_read_point_form,
-                           self.read_input(address=51,wizard_action='test'))
-        self.assertIn('777',corrected['description_placeholders']['result'])
-        saved=self.do_step(flow.async_step_quick_read_point_form,
-                           self.read_input(address=51,wizard_action='save'))
-        self.assertEqual(saved['data']['modbus_registers'][0]['address'],51)
+        self.do_step(flow.async_step_quick_consumer_choose,{'consumer':'new'})
+        invalid=self.sections(
+            basics={**self.sections()['basics'],'min_w':4000})
+        response=self.do_step(flow.async_step_quick_consumer_form,invalid)
+        self.assertEqual(response['errors']['base'],'actuator_step_mismatch')
+        self.assertIn('4140 W',response['description_placeholders']['hint'])
+        corrected=self.do_step(flow.async_step_quick_consumer_form,
+                              self.sections())
+        self.assertEqual(corrected['type'],'create_entry')
 
-    def test_existing_sensor_edit_preserves_id_and_others(self):
+    def test_optional_source_cleared_on_edit_without_restoring_old(self):
+        old={'id':'wb','name':'Wallbox','kind':'continuous','priority':2,
+             'subpriority':1,'min_w':4140,'max_w':11040,
+             'power_output':'number.wallbox','output_unit':'A',
+             'phases':3,'voltage':230,
+             'actual_entity':'sensor.real_power',
+             'demand_entity':'input_boolean.old'}
+        flow=self.flow([old])
+        self.do_step(flow.async_step_quick_consumer_choose,{'consumer':'wb'})
+        edited=self.sections(feedback={})
+        result=self.do_step(flow.async_step_quick_consumer_form,edited)
+        self.assertEqual(result['type'],'create_entry')
+        self.assertNotIn('actual_entity',result['data']['devices'][0])
+        self.assertNotIn('demand_entity',result['data']['devices'][0])
+        self.assertEqual(result['data']['devices'][0]['id'],'wb')
+
+    def test_existing_output_cannot_be_shared_by_two_consumers(self):
+        old={'id':'existing','name':'Other','kind':'continuous','priority':1,
+             'subpriority':1,'min_w':4140,'max_w':11040,
+             'power_output':'number.wallbox','output_unit':'A',
+             'phases':3,'voltage':230}
+        flow=self.flow([old])
+        self.do_step(flow.async_step_quick_consumer_choose,{'consumer':'new'})
+        result=self.do_step(flow.async_step_quick_consumer_form,self.sections())
+        self.assertEqual(result['errors']['base'],'duplicate_output')
+
+    def test_onoff_switch_does_not_require_number_output(self):
         flow=self.flow()
-        old=self.read_input()
-        old['id']='keep-this-id'
-        other=self.read_input(id='untouched',name='Batterie',address=200)
-        flow.config_entry.options['modbus_registers']=[old,other]
-        selected=self.do_step(flow.async_step_quick_read_point_choose,
-                              {'register_id':'keep-this-id'})
-        self.assertEqual(selected['step_id'],'quick_read_point_form')
-        self.assertEqual(flow._quick_read_draft['address'],100)
-        # Existing registry is still untouched after a test.
-        with patch.dict(sys.modules,self.modbus_stub([987])):
-            test=self.do_step(flow.async_step_quick_read_point_form,
-                              self.read_input(address=101,wizard_action='test'))
-        self.assertIn('987',test['description_placeholders']['result'])
-        self.assertEqual(flow.config_entry.options['modbus_registers'][0]['address'],100)
-        saved=self.do_step(flow.async_step_quick_read_point_form,
-                              self.read_input(address=101,wizard_action='save'))
-        values=saved['data']['modbus_registers']
-        self.assertEqual(values[0]['id'],'keep-this-id')
-        self.assertEqual(values[0]['address'],101)
-        self.assertEqual(values[1],other)
+        flow.hass.states.data['switch.heater']=types.SimpleNamespace(
+            state='off',attributes={})
+        self.do_step(flow.async_step_quick_consumer_choose,{'consumer':'new'})
+        inp=self.sections(
+            basics={**self.sections()['basics'],'name':'Heater',
+                    'kind':'onoff','min_w':2000,'max_w':2000},
+            actuator={'switch_output':'switch.heater','output_unit':'W',
+                      'phases':'1','voltage':230},
+            feedback={},
+        )
+        result=self.do_step(flow.async_step_quick_consumer_form,inp)
+        self.assertEqual(result['type'],'create_entry')
+        self.assertEqual(result['data']['devices'][0]['kind'],'onoff')
+        self.assertNotIn('power_output',result['data']['devices'][0])
 
-    def test_sensor_wizard_back_does_not_modify_configuration(self):
-        flow=self.flow()
-        self.do_step(flow.async_step_quick_read_point_choose,{'register_id':'new'})
-        result=self.do_step(flow.async_step_quick_read_point_form,
-                            self.read_input(wizard_action='back'))
-        self.assertEqual(result['step_id'],'quick_read_point_choose')
-        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
-
-    def test_wrong_unit_blocks_save(self):
-        flow = self.flow()
-        self.do_step(flow.async_step_quick_consumer_choose, {'consumer':'new'})
-        self.do_step(flow.async_step_quick_consumer_basics, {'name':'Wallbox',
-                 'kind':'continuous','priority':1,'subpriority':1,
-                 'min_w':4140,'max_w':11040})
-        self.do_step(flow.async_step_quick_consumer_output, {'power_output':'number.wallbox',
-                                                        'output_unit':'W'})
-        self.do_step(flow.async_step_quick_consumer_feedback, {})
-        result = self.do_step(flow.async_step_quick_consumer_review, {'confirm':True})
-        self.assertEqual(result['type'],'form')
-        self.assertEqual(result['errors']['base'],'actuator_unit_mismatch')
 
 
 if __name__ == '__main__':

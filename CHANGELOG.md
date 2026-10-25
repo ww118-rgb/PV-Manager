@@ -1,3 +1,13 @@
+## 0.3.1b2 — Verbraucherformular mit nativen aufklappbaren Bereichen
+
+- Das bisherige mehrseitige Verbraucherformular mit dem umständlichen Dropdown „Navigation (Weiter oder Zurück)“ wurde durch **ein einziges Formular mit Home-Assistant-Sections** ersetzt: Grundlagen/Leistung (offen), Ansteuerung, Messwerte/Anforderung und erweiterte Geräteeinstellungen (eingeklappt).
+- Der Anwender kann zu jeder Geräteeinstellung direkt springen, ohne zwischen Schritten zu navigieren. Der bestehende Verbraucher wird vorausgefüllt, behält beim Bearbeiten seine ID und seine Geräte-Timingparameter. Nicht ausgeklappte Bereiche behalten ihre Konfiguration.
+- Echte Validierung beim abschließenden Speichern: Mindest- und Maximalleistung, Geräteschrittweite, W/kW/A, Ist- und Aktorzuordnung, Ein/Aus-Ausgänge, doppelt verwendete Steueraktoren; bei fehlerhaften Daten bleibt das komplette Formular zur Korrektur offen.
+- Ein klarer abschließender Bestätigungsschalter verhindert versehentliches Speichern. Bei Ein/Aus-Geräten wird kein altes Power-Number-Entity weitergeschleppt.
+- Die alte Dropdown-Navigation und die dazugehörigen Verbraucher-Zwischenformulare wurden aus dem aktiven Code entfernt. Alte Daten und Optionen werden unverändert weitergenutzt.
+- **Regelkern, 15-Sekunden-Zyklus und Modbus-Lese-/Schreiblogik bleiben unverändert.**
+- Regressionstests für die Abschnittsstruktur, Erhalt von IDs, Fehlerkorrektur ohne Datenverlust, Hardware-Zeiten, explizite Freigabe, Ein/Aus und doppelte Aktorzuordnung.
+
 ## 0.3.1b1 — Navigierbare Datenpunkte und Modbus-Lesetest vor dem Speichern
 
 - Hauptmenü neu gruppiert in **Anlage**, **Verbraucher**, **Datenpunkte**, **Verbindungen**, **Diagnose** und **Erweiterte Einstellungen**. Das bisherige überlange Expertenmenü ist in wenige verständliche Themen aufgeteilt. Bereits existierende Optionen- und Gerätekennungen bleiben erhalten.
