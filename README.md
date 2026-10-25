@@ -1,16 +1,12 @@
-## Regler und Energiemessung ab 0.2.3b1
+## Der einfache Regelzyklus (ab Version 0.3.0b1)
 
-Für das Verteilungsbudget gilt dieselbe Leistungsbilanz über alle Netzleistungswerte: **Netz (Einspeisung positiv) + Batterie (nach Normierung: Laden positiv) + angerechnete steuerbare Verbraucher − Sicherheitsreserve**. Der alte Umschaltpunkt bei 1 kW Netzbezug ist entfernt; zuvor konnte eine 2-W-Messänderung bei 6 kW Batterieladung einen 6,002-kW-Budgetsprung verursachen. Bei mehr als 150 W Netzbezug verhindert eine zusätzliche Freigabesperre **Erhöhungen der gesamten steuerbaren Last**; die normalen Prioritäten dürfen innerhalb des bestehenden Gesamtwerts umverteilen. Die schnelle 5-Sekunden-Schutzauslösung bei mindestens 1 kW Netzbezug bleibt bestehen und kann nur reduzieren. Nach einem Schutzeingriff sind 30 Sekunden Haltezeit und zwei stabile Hauptzyklen erforderlich. Sensor „Für Steuerung freigegebenes Budget“ zeigt den durch die Netzbezugssperre begrenzten Regelwert.
+Der PV Energiemanager hat **einen** Ablauf: (1) Sensor-Snapshot, (2) verfügbare Leistung berechnen, (3) alle Prioritätsgruppen mit den tatsächlichen Gerätestufen verteilen, (4) Sollwerte der Geräte schreiben, (5) **erst nach Abschluss 15 Sekunden warten**. Kein zusätzlicher Regler schreibt alle 5 Sekunden; keine künstliche Ampere-Rampe und keine mehrzyklische Regler-Freigabe. Modbus-Lesesensoren dürfen unabhängig weiter alle 5 Sekunden aktualisieren.
 
-Der PV-Energiemanager ersetzt keinen netzseitigen Schutz. Für realen Betrieb Funktion und Messwertfrische verifizieren.
+Netzleistung intern positiv für Einspeisung, Batterie positiv für Laden. Verteilbares physikalisches Budget = Netzleistung + Batterieleistung + angerechnete Ist-/Soll-Leistungen der kontrollierten Geräte − konfigurierte Reserve. Bei Netzbezug begrenzt **dieselbe** Berechnung die neue Gesamtlast. Eine kleine Toleranz von 150 W verhindert unnötiges Abschalten wegen minimaler Netzschwankungen. Physische Mindestlaufzeiten und explizite sichere Geräte-Pausenbefehle bleiben unverändert.
 
-## Schneller Netzbezug-Schutz ab 0.2.2b9
+Eine 15-Sekunden-Softwareregelung ist **keine Sicherheitsabschaltung**. Reale Hardware muss ihre erforderlichen eigenen Begrenzungen und Schutzfunktionen behalten.
 
-Die Gesamtberechnung bleibt alle 15 Sekunden. Zusätzlich prüft der Manager alle 5 Sekunden die Netzleistung auf erheblichen Bezug (initial mindestens 1000 W) und senkt gegebenenfalls die aktuell steuerbaren Verbraucher nach konfigurierter Priorität ab. Batterie-Laden wird bei großem Netzbezug nicht als unmittelbar frei angenommen. Nach einem Schutz-Eingriff gibt der Manager der echten Messung eine Wirkungsfrist und verhindert sofortiges erneutes Hochregeln. Drei neue Sensoren dokumentieren die Eingriffe. Das ist ein Software-Betaregler, kein Ersatz für hardwareseitige Schutzfunktionen.
 
-## Testbetrieb mit schnell schwankender PV-Leistung (ab 0.2.2b8)
-
-Für Geräte mit groben Stellstufen (mindestens 300 W pro Stellstufe) ist die Hochregelung zunächst auf **zwei Stufen pro EMS-Regelzyklus** begrenzt. Reduzieren und Abschalten bleiben unmittelbar. Die Begrenzung wird als eigener Sensor „Wegen Anstiegsbegrenzung zurückgehalten“ sichtbar. Bei dreiphasigen 230-V-Wallboxen mit 1-A-Schritten entspricht dies höchstens +2 A je Zyklus. 16 A entsprechen 11.040 W: Sowohl die Verbraucher-Maximalleistung als auch die Number-Entitätsobergrenze müssen 16 A ermöglichen. Die 5-s-Sensorabfragen sind von der Standard-Regelperiode (15 s) unabhängig. Die Begrenzung ersetzt keinen schnellen netzseitigen Schutz für reale Geräte.
 
 ## Ab 0.2.2b4: Abgleich zwischen Sollwert, Ampere und tatsächlicher Last
 

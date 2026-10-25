@@ -1,3 +1,13 @@
+## 0.3.0b1 — Ein Regeldurchgang statt konkurrierender Timer
+
+- Vereinfachung des Managers auf exakt einen sequentiellen Zyklus: Messwerte lesen, Leistungsbilanz bilden, alle Verbraucher nach Priorität in gerätespezifischen Schritten verteilen, notwendige Sollwerte schreiben (Reduzierungen zuerst), danach 15 Sekunden warten. Läuft ein Schreibvorgang länger, startet die Wartezeit erst nach Abschluss.
+- Der zuvor zusätzlich alle 5 Sekunden schreibende Netzbezugsschutz ist entfernt. Ebenso entfernt: künstliche Begrenzung auf zwei Ampere pro Zyklus, mehrzyklische Regler-Bestätigung und Sicherheitswiederfreigabe. Modbus-Sensoreingänge dürfen unverändert alle 5 Sekunden gelesen werden; deren Abfrage löst niemals einen Regel-Schreibbefehl aus.
+- Der physikalische Leistungsansatz bleibt stetig: Netz + Batterie + angerechnete gesteuerte Verbraucher − Reserve. Während Netzbezug wird dieselbe einzige Berechnung um eine Netzbezugsbegrenzung ergänzt; geringe Änderungen bis 150 W führen nicht zu einer unnötigen Gerätestufe.
+- Native Ampere-Stufung, gleiche Aufteilung innerhalb einer Prioritätsgruppe, Unterprioritäten, Hardware-Mindestlaufzeiten, Pausenwerte, Fremdverstellungserkennung und Write-Validierung bleiben erhalten und arbeiten nur im normalen Zyklus.
+- Redundante Reglerdateien und entsprechende Diagnoseeinträge entfallen; Sensoren/Aktoren/Protokollzuordnungen bestehender Installationen bleiben unverändert.
+
+**Einschränkung:** Die vereinfachte Regelung führt bewusst keine zusätzliche sicherheitsgerichtete Schnellabschaltung zwischen den Durchgängen aus. Eine Home-Assistant-Softwaresteuerung ersetzt keine Geräteschutz- und Netzanschlussschutzfunktionen.
+
 ## 0.2.3b1 — Durchgängige Leistungsbilanz und koordinierte Netzbezugssperre
 
 **Root-Cause-Fix:** Der bisherige Regelkern hat bei Netzbezug von 999 auf 1001 W plötzlich die gesamte positive Batterieladung aus dem Leistungsbudget gestrichen. 2 W Messwertänderung konnten dadurch ein 6-kW-Sollwertspringen auslösen. Dieser Diskontinuitätsfehler ist behoben.

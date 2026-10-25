@@ -9,16 +9,11 @@ import time
 from typing import Callable
 
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE
 from .engine import Consumer, distribute
-from .hysteresis import stabilize
-from .ramp import limit_increases
-from .grid_safety import (
-    safety_targets, budget_with_grid_priority, cap_budget_on_import,
-)
+from .control import plan_cycle
 from .actuator_guard import actuator_can_receive_command
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,8 +36,6 @@ class PowerManager:
             "grid": None, "battery": 0, "pv": None, "budget": None,
             "allocation_budget": None,
             "assigned": 0, "unallocated": 0, "deficit": 0,
-            "ramp_delayed": 0, "safety_interventions": 0,
-            "safety_last_import": 0, "safety_curtailment": 0,
         }
         self.per_device: dict[str, dict] = {
             d["id"]: {"target": 0, "actual": None, "demand": False, "accounted": 0}
@@ -54,16 +47,9 @@ class PowerManager:
         self.last_stopped: dict[str, float] = {}
         self.request_since: dict[str, float] = {}
         self.group_records: list[dict] = []
-        self._shortage_cycles = 0
         self._listeners: list[Callable] = []
-        self._unsubscribe = None
-        self._safety_unsubscribe = None
-        self._safety_hold_until = 0.0
-        self._last_safety_write = -1e12
-        self._safety_settle_until = 0.0
-        self._safety_precommand_targets: dict[str, int] = {}
-        self._safety_last_import = 0.0
-        self._recovery_confirm = 0
+        self._loop_task: asyncio.Task | None = None
+        self._loop_running = False
         self._lock = asyncio.Lock()
         self._bootstrapped = False
         # Zero desired is not proof of an executed device pause.
@@ -88,35 +74,32 @@ class PowerManager:
             fn()
 
     def start(self):
-        interval = int(self.settings.get("interval_s", DEFAULT_INTERVAL))
-        self._unsubscribe = async_track_time_interval(
-            self.hass,
-            self._schedule_cycle,
-            timedelta(seconds=interval),
-        )
-        # Safety check only CURTAILS every five seconds, without rerunning
-        # the main priority allocation / increases.
-        self._safety_unsubscribe = async_track_time_interval(
-            self.hass, self._schedule_safety,
-            timedelta(seconds=min(5, interval)),
-        )
+        """Launch only one sequential EMS task."""
+        if self._loop_task is not None and not self._loop_task.done():
+            return
+        self._loop_running = True
+        self._loop_task = self.hass.async_create_task(self._run_loop())
 
-    @callback
-    def _schedule_cycle(self, _now):
-        """Schedule the monitoring/regulation cycle on HA event-loop thread."""
-        self.hass.async_create_task(self.async_cycle())
-
-    @callback
-    def _schedule_safety(self, _now):
-        self.hass.async_create_task(self.async_safety_cycle())
+    async def _run_loop(self):
+        """One snapshot -> one calculation -> one write batch -> wait."""
+        try:
+            while self._loop_running:
+                await self.async_cycle()
+                if self._loop_running:
+                    await asyncio.sleep(max(1, int(
+                        self.settings.get("interval_s", DEFAULT_INTERVAL)
+                    )))
+        except asyncio.CancelledError:
+            raise
+        finally:
+            self._loop_running = False
 
     def stop(self):
-        if self._unsubscribe:
-            self._unsubscribe()
-            self._unsubscribe = None
-        if self._safety_unsubscribe:
-            self._safety_unsubscribe()
-            self._safety_unsubscribe = None
+        self._loop_running = False
+        task = self._loop_task
+        self._loop_task = None
+        if task is not None and not task.done():
+            task.cancel()
         self.enabled = False
 
     def enable(self, value: bool):
@@ -130,18 +113,8 @@ class PowerManager:
             if value and not self.enabled:
                 self._pending_zero_sync = {d["id"] for d in self.devices}
                 self._unconfirmed_stop.clear()
-                self._shortage_cycles = 0
-                self._safety_hold_until = 0.0
-                self._safety_settle_until = 0.0
-                self._safety_precommand_targets.clear()
-                self._recovery_confirm = 0
             elif not value:
                 self._pending_zero_sync.clear()
-                self._shortage_cycles = 0
-                self._safety_hold_until = 0.0
-                self._safety_settle_until = 0.0
-                self._safety_precommand_targets.clear()
-                self._recovery_confirm = 0
             self.enabled = value
             self.status = "Bereit" if value else "Pausiert"
             self.error = ""
@@ -458,66 +431,6 @@ class PowerManager:
             self.request_since.pop(ident, None)
         return effective
 
-    async def async_safety_cycle(self):
-        """Promptly curtail high physical grid imports, never increase."""
-        if not self.enabled or self._lock.locked():
-            return
-        async with self._lock:
-            if not self.enabled:
-                return
-            try:
-                grid = self._read_watts(self.settings.get("grid_entity"))
-                if grid is None:
-                    return
-                if not self.settings.get("grid_export_positive", True):
-                    grid *= -1
-                threshold = float(self.settings.get("safety_import_w", 1000))
-                if grid > -threshold:
-                    return
-                now = time.monotonic()
-                # Avoid multiple cuts on one unchanged meter observation.
-                # React earlier if import grows by another >2 kW.
-                if (now < self._safety_settle_until
-                        and -grid < self._safety_last_import + 2000):
-                    return
-                self._startup()
-                consumers = self._build_consumers(now, preview=False)
-                current = dict(self.last_targets)
-                reduced = safety_targets(
-                    grid, consumers, current, threshold_w=threshold,
-                    margin_w=float(self.settings.get("safety_margin_w", 300)),
-                )
-                changes = [d for d in self.devices
-                           if reduced[d["id"]] < current.get(d["id"], 0)]
-                if not changes:
-                    return
-                for d in sorted(changes, key=lambda d: (d["priority"], d["subpriority"]), reverse=True):
-                    await self._write(d, reduced[d["id"]])
-                self._last_safety_write = now
-                self._safety_last_import = -grid
-                self._safety_settle_until = now + max(10, int(
-                    self.settings.get("feedback_settle_s", DEFAULT_SETTLE)))
-                self._safety_precommand_targets = current
-                self._safety_hold_until = now + max(30, 2 * int(
-                    self.settings.get("interval_s", DEFAULT_INTERVAL)))
-                self._shortage_cycles = 0
-                self._recovery_confirm = 0
-                self.values["safety_last_import"] = int(round(-grid))
-                self.values["safety_curtailment"] = sum(
-                    max(0, current.get(k,0) - self.last_targets.get(k,0))
-                    for k in current)
-                self.values["safety_interventions"] += 1
-                self.status = "Netzbezug-Schutz"
-            except Exception as exc:
-                self.status = "Fehler"
-                self.error = f"Sicherheitsreduzierung fehlgeschlagen: {exc}"
-                _LOGGER.exception("Sicherheitsreduzierung fehlgeschlagen")
-            finally:
-                for d in self.devices:
-                    key = d["id"]
-                    self.per_device[key]["target"] = self.last_targets.get(key, 0)
-                self.notify()
-
     async def async_cycle(self):
         """Always refresh measurements; write actuator commands only when enabled.
 
@@ -542,42 +455,27 @@ class PowerManager:
                 # Inputs are exposed even when live regulation is switched off.
                 self.values.update({"grid": grid, "battery": battery, "pv": pv})
                 if grid is None or battery is None:
-                    self.values.update({"budget": None, "allocation_budget": None,
-                                    "deficit": None, "ramp_delayed": 0})
+                    self.values.update({
+                        "budget": None, "allocation_budget": None, "deficit": None,
+                    })
                     self.status = "Messfehler" if self.enabled else "Pausiert (Messfehler)"
                     self.error = "Netz- oder Batteriesensor fehlt/ist ungültig; keine Schreibbefehle"
                     return
 
                 now = time.monotonic()
                 consumers = self._build_consumers(now, preview=True)
-                # Load above our most recent commanded level is not safely
-                # recoverable power. It is already visible in the grid meter.
-                # Do not count an unconfirmed curtailment twice while the
-                # old physical load may still appear in grid measurements.
-                settling = now < self._safety_settle_until
                 accounted = sum(
-                    min(c.actual, (max(c.old_target,
-                        self._safety_precommand_targets.get(c.id, 0))
-                        if settling else c.old_target))
-                    if c.actual is not None
-                    else (max(c.old_target,
-                        self._safety_precommand_targets.get(c.id, 0))
-                        if settling else c.old_target)
+                    min(c.actual, c.old_target) if c.actual is not None
+                    else c.old_target
                     for c in consumers
                 )
                 reserve = float(self.settings.get("reserve_w", DEFAULT_RESERVE))
-                budget = budget_with_grid_priority(
+                measured_plan = plan_cycle(
                     grid, battery, accounted, reserve,
-                    urgent_import_w=float(self.settings.get("safety_import_w", 1000)),
+                    consumers, self.last_targets,
                 )
-                # A physically continuous budget and a separate *permission*
-                # to raise controllable load prevent contradictory control
-                # decisions near a 1-kW import alarm. Priority reallocation
-                # remains possible within the already commanded total.
-                old_total = sum(self.last_targets.values())
-                allocation_budget = cap_budget_on_import(
-                    grid, budget, old_total, deadband_w=150,
-                )
+                budget = measured_plan.physical_budget
+                allocation_budget = measured_plan.allowed_budget
                 self.values.update({
                     "budget": round(budget, 1),
                     "allocation_budget": round(allocation_budget, 1),
@@ -588,15 +486,7 @@ class PowerManager:
                     # commands, and never touch activation/delay bookkeeping.
                     self.status = "Pausiert"
                     self.error = ""
-                    self.values["ramp_delayed"] = 0
                     return
-                if settling:
-                    # Wait for fresh response; the fast safety checker remains
-                    # active and may react sooner to a worse grid import.
-                    self.status = "Netzbezug-Schutz (Wirkung abwarten)"
-                    self.cycle_count += 1
-                    return
-
                 preview = distribute(allocation_budget, consumers)
                 for d in self.devices:
                     key = d["id"]
@@ -608,31 +498,12 @@ class PowerManager:
                         self.request_since.pop(key, None)
 
                 live_consumers = self._build_consumers(now, preview=False)
-                execution = distribute(allocation_budget, live_consumers)
-                decision = stabilize(
-                    allocation_budget, live_consumers,
-                    self.last_targets, self._shortage_cycles,
+                plan = plan_cycle(
+                    grid, battery, accounted, reserve,
+                    live_consumers, self.last_targets,
                 )
-                self._shortage_cycles = decision.shortage_cycles
-                desired = limit_increases(
-                    decision.targets, live_consumers, self.last_targets,
-                )
-                # Recovery after emergency curtailment needs two stable
-                # regular observations, not merely the expiry of a timer.
-                if self._safety_hold_until:
-                    if grid < -150:
-                        self._recovery_confirm = 0
-                    else:
-                        self._recovery_confirm = min(2, self._recovery_confirm + 1)
-                if (now < self._safety_hold_until
-                        or (self._safety_hold_until and self._recovery_confirm < 2)):
-                    desired = {key: min(watts, self.last_targets.get(key, 0))
-                               for key, watts in desired.items()}
-                self.values["ramp_delayed"] = sum(
-                    max(0, decision.targets[key] - desired[key])
-                    for key in desired
-                )
-                self.group_records = execution.group_records
+                desired = plan.targets
+                self.group_records = plan.group_records
                 self.cycle_count += 1
 
                 # Explicit zero synchronisation is necessary on arming,
@@ -644,12 +515,20 @@ class PowerManager:
                 increases = [d for d in self.devices if desired[d["id"]] >
                              self.last_targets.get(d["id"], 0)]
                 for d in sorted(stops, key=lambda x: (x["priority"], x["subpriority"]), reverse=True):
+                    if not self.enabled:
+                        break
                     await self._write(d, 0, force=self._reconcile_zero(d, now))
                 for d in sorted(decreases, key=lambda x: (x["priority"], x["subpriority"]), reverse=True):
+                    if not self.enabled:
+                        break
                     await self._write(d, desired[d["id"]])
                 for d in sorted(increases, key=lambda x: (x["priority"], x["subpriority"])):
+                    if not self.enabled:
+                        break
                     await self._write(d, desired[d["id"]])
                 for d in self.devices:
+                    if not self.enabled:
+                        break
                     if (desired[d["id"]] > 0 and
                             self._reconcile_active_setpoint(d, desired[d["id"]], now)):
                         await self._write(d, desired[d["id"]], force=True)
