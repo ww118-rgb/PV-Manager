@@ -1,4 +1,8 @@
-# PV Energiemanager – geführte Einrichtung (0.2.2b1)
+## Wichtig: Modbus zuerst einrichten, ohne vorhandene Sensoren
+
+Ab 0.2.2b2 kann die Integration **ohne Netzsensor** angelegt werden. Der erste Einrichtungsdialog hat nur einen optionalen bereits vorhandenen Netzsensor. Nach Installation unter **Konfigurieren → Modbus-Datenquelle hinzufügen** die Geräteverbindung und den Netz-Lesesensor erstellen. Erst danach unter **Anlage einrichten** als Netzsensor zuordnen. Ohne gültige Netzleistung ist die Regelungsfreigabe gesperrt. Siehe [Einrichtungsassistent](EINRICHTUNGSASSISTENT.md).
+
+# PV Energiemanager – geführte Einrichtung (0.2.2b2)
 
 Der Bereich **Konfigurieren** zeigt jetzt zuerst vier klar erkennbare Optionen:
 
@@ -31,7 +35,7 @@ Off und laufender Sollwert werden in diesem ersten Adapter **auf dasselbe Schrei
 
 ---
 
-# PV-Manager für Home Assistant – 0.2.2b1 (geführte Einrichtung)
+# PV-Manager für Home Assistant – 0.2.2b2 (geführte Einrichtung)
 
 **Aktueller Stand:** Die bestehende PV-Überschussregelung bleibt erhalten.
 Neu: Modbus-TCP-Verbindungen und frei definierbare **Lesesensoren** werden

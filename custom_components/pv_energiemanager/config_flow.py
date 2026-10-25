@@ -27,6 +27,18 @@ def _num(lo: int, hi: int, step: int = 1):
     return selector.NumberSelector(selector.NumberSelectorConfig(min=lo, max=hi, step=step, mode="box"))
 
 
+def _initial_setup_schema():
+    """Allow adding the hub before any locally created Modbus sensor exists.
+
+    Existing HA grid sensors may be selected on first install, but this
+    integration cannot create its native Modbus sensors before the hub exists.
+    """
+    return vol.Schema({
+        vol.Optional("grid_entity"):
+            _entity(["sensor", "number", "input_number"]),
+    })
+
+
 def _global_schema(settings: dict):
     return vol.Schema({
         vol.Required("grid_entity", default=settings.get("grid_entity", "")):
@@ -207,8 +219,19 @@ class PVConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         if self._async_current_entries():
             return self.async_abort(reason="single_instance_allowed")
         if user_input is not None:
-            return self.async_create_entry(title="PV Energiemanager", data=user_input)
-        return self.async_show_form(step_id="user", data_schema=_global_schema({}))
+            # Create the hub before configuring native Modbus sensor sources.
+            # Without a valid grid input the EMS stays paused/inhibited.
+            entry_data = {
+                "grid_export_positive": True,
+                "battery_charge_positive": True,
+                "interval_s": DEFAULT_INTERVAL,
+                "reserve_w": DEFAULT_RESERVE,
+                "feedback_settle_s": DEFAULT_SETTLE,
+            }
+            if user_input.get("grid_entity"):
+                entry_data["grid_entity"] = user_input["grid_entity"]
+            return self.async_create_entry(title="PV Energiemanager", data=entry_data)
+        return self.async_show_form(step_id="user", data_schema=_initial_setup_schema())
 
     @staticmethod
     @callback
@@ -233,9 +256,19 @@ class PVOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["quick_system_sources", "quick_consumer_choose",
-                          "quick_diagnostics", "advanced"],
+            menu_options=["quick_modbus_setup", "quick_system_sources",
+                          "quick_consumer_choose", "quick_diagnostics", "advanced"],
         )
+
+    async def async_step_quick_modbus_setup(self, user_input=None):
+        """Create a Modbus connection before creating its first read sensor."""
+        options = ["modbus_connection"]
+        if self._connections():
+            options.append("modbus_register")
+        if self._registers():
+            options.append("modbus_test_register")
+        options.append("quick_system_sources")
+        return self.async_show_menu(step_id="quick_modbus_setup", menu_options=options)
 
     async def async_step_advanced(self, user_input=None):
         """Retain every existing dialog for specialists and compatibility."""

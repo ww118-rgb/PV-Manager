@@ -87,9 +87,16 @@ class PowerManager:
         self.enabled = False
 
     def enable(self, value: bool):
-        self.enabled = value
-        self.status = "Bereit" if value else "Pausiert"
-        self.error = ""
+        # Do not arm actuators before a valid grid measurement is configured.
+        if value and self._read_watts(self.settings.get("grid_entity")) is None:
+            self.enabled = False
+            self.status = "Einrichtung unvollständig"
+            self.error = ("Netzleistung fehlt oder liefert keinen gültigen Wert. "
+                          "Bitte erst eine Netzleistungs-Entität zuordnen.")
+        else:
+            self.enabled = value
+            self.status = "Bereit" if value else "Pausiert"
+            self.error = ""
         self.notify()
 
     def _read_watts(self, entity_id: str | None) -> float | None:

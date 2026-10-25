@@ -185,6 +185,28 @@ class RuntimeMonitoringTests(unittest.TestCase):
             asyncio.run(manager._write(device, 4140))
         self.assertEqual(hass.services.calls, 0)
 
+    def test_arm_blocked_when_grid_missing(self):
+        class States:
+            def get(self, name): return None
+        hass = types.SimpleNamespace(states=States())
+        entry = types.SimpleNamespace(entry_id='no_grid', data={}, options={})
+        ems = self.manager_module.PowerManager(hass, entry)
+        ems.enable(True)
+        self.assertFalse(ems.enabled)
+        self.assertEqual(ems.status, 'Einrichtung unvollständig')
+        self.assertIn('Netzleistung', ems.error)
+
+    def test_arm_allowed_after_grid_sensor_is_valid(self):
+        class States:
+            def get(self, name):
+                return types.SimpleNamespace(state='2.5', attributes={'unit_of_measurement':'kW'})
+        hass = types.SimpleNamespace(states=States())
+        entry = types.SimpleNamespace(entry_id='with_grid', data={'grid_entity':'sensor.grid'}, options={})
+        ems = self.manager_module.PowerManager(hass, entry)
+        ems.enable(True)
+        self.assertTrue(ems.enabled)
+        self.assertEqual(ems.status, 'Bereit')
+
     def test_invalid_grid_clears_old_budget_while_paused(self):
         class States:
             def get(self, key): return None

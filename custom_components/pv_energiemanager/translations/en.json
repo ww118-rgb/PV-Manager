@@ -5,15 +5,9 @@
       "user": {
         "title": "Configure energy manager",
         "data": {
-          "grid_entity": "Grid power sensor",
-          "battery_entity": "Battery power sensor (optional)",
-          "pv_entity": "PV generation (optional)",
-          "grid_export_positive": "Positive grid power means export",
-          "battery_charge_positive": "Positive battery power means charging",
-          "interval_s": "Control interval in seconds",
-          "reserve_w": "Safety reserve in watts",
-          "feedback_settle_s": "Wait before reusing confirmed feedback (s)"
-        }
+          "grid_entity": "Select existing grid sensor (optional)"
+        },
+        "description": "No grid, PV or battery sensor is needed yet. To create sensors through this integration's Modbus connection, leave the optional field blank and submit. Then open Configure → Add Modbus data source. Regulation remains blocked until a valid grid sensor is assigned."
       }
     },
     "abort": {
@@ -28,7 +22,8 @@
           "quick_system_sources": "1. Set up site",
           "quick_consumer_choose": "2. Set up consumer",
           "quick_diagnostics": "3. Check setup",
-          "advanced": "Advanced settings"
+          "advanced": "Advanced settings",
+          "quick_modbus_setup": "Add Modbus data source"
         }
       },
       "general": {
@@ -339,6 +334,16 @@
         "title": "Setup diagnostics – no writes",
         "data": {},
         "description": "Grid sensor: {sensor}. **Grid: {grid}**. Status: {status}; latest error: {error}. **Consumers:** {devices}. This check sends no commands."
+      },
+      "quick_modbus_setup": {
+        "title": "Create a Modbus grid sensor",
+        "description": "Add the Modbus TCP device first, then add its read sensor and register settings. Afterwards choose this sensor under Site setup as grid power. Reuse existing Modbus connections.",
+        "menu_options": {
+          "modbus_connection": "1. Add Modbus TCP device",
+          "modbus_register": "2. Add Modbus read sensor",
+          "modbus_test_register": "3. Test-read register",
+          "quick_system_sources": "4. Assign sensor to the site"
+        }
       }
     },
     "error": {

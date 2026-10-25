@@ -1,3 +1,16 @@
+# Erstinstallation ohne Sensoren (ab 0.2.2b2)
+
+1. PV Energiemanager unter Geräte & Dienste installieren. Der vorhandene Netzsensor ist **optional**; bei Modbus-Neuanbindung leer lassen.
+2. Unter **Konfigurieren → Modbus-Datenquelle hinzufügen → Modbus-TCP-Gerät hinzufügen** die Geräteverbindung konfigurieren.
+3. Dialog erneut öffnen: **Modbus-Datenquelle hinzufügen → Modbus-Lesesensor hinzufügen**. Registeradresse, FC03/04, Format, Einheit und Skalierung wählen. Das Gerät bzw. Register ist **kein fester Simulatordefault**.
+4. Optional unter **Modbus-Datenquelle hinzufügen → Register testweise lesen** prüfen.
+5. Danach **Anlage einrichten** und den neu erzeugten Netzsensor auswählen; Vorzeichen prüfen.
+6. Die Regelung erst nach Prüfung der Anlage und Verbraucher aktivieren. Sie wird technisch blockiert, falls der Netzsensor fehlt oder ungültig ist.
+
+Für einen bereits installierten PV-Manager ist keine Neuinstallation erforderlich. Die bestehenden Sensoren und Geräte bleiben erhalten.
+
+---
+
 # Einfacher Einrichtungsassistent – PV-Manager 0.2.2b1
 
 ## Zuerst Anlage

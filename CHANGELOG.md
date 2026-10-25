@@ -1,3 +1,11 @@
+## 0.2.2b2 — Erstinstallation ohne Netzsensor möglich
+
+- Erste HA-Einrichtung lässt das Anlegen des Hubs ohne vorhandene Sensoren zu. Netzsensor ist beim ersten Schritt optional.
+- In der Konfiguration jetzt direkt „Modbus-Datenquelle hinzufügen“ mit geführter Reihenfolge Gerät → Lesesensor → Lesetest → Anlagenzuordnung.
+- Die Regelung lässt sich nicht einschalten, solange kein gültiger Netzleistungs-Sensor hinterlegt ist. Keine Befehle bei unvollständiger Einrichtung.
+- Bereits eingerichtete Installationen und IDs bleiben unverändert.
+- Regressionstests für leeren Bootstrap, vorhandene Sensoren und gesperrte Regelungsfreigabe.
+
 ## 0.2.2b1 – Einfache Einrichtung und Diagnosen
 
 - Neues Hauptmenü: Anlage einrichten, Verbraucher einrichten, Einstellungen prüfen, Erweiterte Einstellungen.

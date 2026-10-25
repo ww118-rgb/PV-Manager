@@ -110,7 +110,35 @@ class WizardFlowTests(unittest.TestCase):
         flow = self.flow()
         menu = self.do_step(flow.async_step_init)
         self.assertEqual(menu['menu_options'], [
-            'quick_system_sources', 'quick_consumer_choose', 'quick_diagnostics', 'advanced'])
+            'quick_modbus_setup', 'quick_system_sources', 'quick_consumer_choose',
+            'quick_diagnostics', 'advanced'])
+
+    def test_first_installation_without_any_sensor_creates_config_entry(self):
+        flow = self.flow_mod.PVConfigFlow()
+        flow._async_current_entries = lambda: []
+        form = self.do_step(flow.async_step_user)
+        self.assertEqual(form['type'], 'form')
+        self.assertEqual(list(form['data_schema'].keys()), ['grid_entity'])
+        saved = self.do_step(flow.async_step_user, {})
+        self.assertEqual(saved['type'], 'create_entry')
+        self.assertNotIn('grid_entity', saved['data'])
+        self.assertEqual(saved['data']['interval_s'], 15)
+
+    def test_first_installation_accepts_preexisting_grid(self):
+        flow = self.flow_mod.PVConfigFlow()
+        flow._async_current_entries = lambda: []
+        saved = self.do_step(flow.async_step_user, {'grid_entity':'sensor.grid'})
+        self.assertEqual(saved['data']['grid_entity'], 'sensor.grid')
+
+    def test_new_modbus_source_menu_before_grid_sensor_exists(self):
+        flow = self.flow()
+        flow.config_entry.data = {}
+        flow.config_entry.options['modbus_connections'] = []
+        menu = self.do_step(flow.async_step_quick_modbus_setup)
+        self.assertEqual(menu['menu_options'], ['modbus_connection', 'quick_system_sources'])
+        flow.config_entry.options['modbus_connections'] = [{'id':'new', 'name':'PV'}]
+        menu = self.do_step(flow.async_step_quick_modbus_setup)
+        self.assertIn('modbus_register', menu['menu_options'])
 
     def test_site_wizard_previews_direction_without_writing(self):
         flow = self.flow()

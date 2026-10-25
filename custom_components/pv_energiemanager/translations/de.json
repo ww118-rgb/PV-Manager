@@ -5,15 +5,9 @@
       "user": {
         "title": "Energiemanager einrichten",
         "data": {
-          "grid_entity": "Netzleistung",
-          "battery_entity": "Batterieleistung (optional)",
-          "pv_entity": "PV-Erzeugung (optional)",
-          "grid_export_positive": "Positive Netzleistung bedeutet Einspeisung",
-          "battery_charge_positive": "Positive Batterieleistung bedeutet Laden",
-          "interval_s": "Regelintervall in Sekunden",
-          "reserve_w": "Sicherheitsreserve in Watt",
-          "feedback_settle_s": "Wartezeit vor Istwertfreigabe (s)"
-        }
+          "grid_entity": "Vorhandenen Netzsensor auswählen (optional)"
+        },
+        "description": "Du brauchst noch keinen Netz-, PV- oder Batteriesensor. Wenn du die Sensoren mit dem PV-Manager über Modbus anlegen willst, lass das optionale Feld leer und bestätige. Danach: Konfigurieren → Modbus-Datenquelle hinzufügen. Ohne gültigen Netzsensor bleibt die Regelung gesperrt."
       }
     },
     "abort": {
@@ -28,7 +22,8 @@
           "quick_system_sources": "1. Anlage einrichten",
           "quick_consumer_choose": "2. Verbraucher einrichten",
           "quick_diagnostics": "3. Einstellungen prüfen",
-          "advanced": "Erweiterte Einstellungen"
+          "advanced": "Erweiterte Einstellungen",
+          "quick_modbus_setup": "Modbus-Datenquelle hinzufügen"
         }
       },
       "general": {
@@ -339,6 +334,16 @@
         "title": "Einrichtungsprüfung – ohne Steuerbefehle",
         "data": {},
         "description": "Netzleistungssensor: {sensor}. **Aktuell: {grid}**. Regelstatus: {status}; letzter Fehler: {error}. **Verbraucher:** {devices}. Es werden keine Befehle an Geräte gesendet."
+      },
+      "quick_modbus_setup": {
+        "title": "Modbus-Netzsensor anlegen",
+        "description": "Zuerst das Modbus-TCP-Gerät hinzufügen, dann den Lesesensor mit seinen Registerdaten anlegen. Anschließend unter „Anlage einrichten“ als Netzleistung auswählen. Bereits vorhandene Modbus-Geräte können wiederverwendet werden.",
+        "menu_options": {
+          "modbus_connection": "1. Modbus-TCP-Gerät hinzufügen",
+          "modbus_register": "2. Modbus-Lesesensor hinzufügen",
+          "modbus_test_register": "3. Register testweise lesen",
+          "quick_system_sources": "4. Sensor der Anlage zuordnen"
+        }
       }
     },
     "error": {
