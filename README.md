@@ -1,3 +1,20 @@
+# PV Energiemanager – geführte Einrichtung (0.2.2b1)
+
+Der Bereich **Konfigurieren** zeigt jetzt zuerst vier klar erkennbare Optionen:
+
+1. **Anlage einrichten**: Netz-, PV- und Batteriesensor per HA-Dropdown auswählen, Netz-/Batterie-Vorzeichen verstehen, Messwert live vorab prüfen.
+2. **Verbraucher einrichten**: neuen Verbraucher anlegen oder vorhandenen bearbeiten – Eckdaten, Sollwertaktor, Einheit, W→A-Umrechnung (falls nötig), Istleistung und Anforderung, anschließend Zusammenfassung.
+3. **Einstellungen prüfen**: aktuelle Netzrichtung, Aktor- und Ist-Sensoren sowie unklare Anforderungsquellen ohne Schreibbefehle anzeigen.
+4. **Erweiterte Einstellungen**: alle bisherigen Dialoge zur Modbus-Geräte-/Registerverwaltung, Schreiben und Expertenparameter bleiben erhalten.
+
+**Das Update löscht keine Verbraucher, Modbus-Verbindungen, Sensoren oder Entitäts-IDs.** Zur Neu-Einrichtung bestehende Geräte im Assistenten **bearbeiten**; nicht die Integration löschen. Kompatibilität wird vor dem Speichern geprüft (Ausgang vorhanden, korrekte Einheit, Minimal- und Maximalgrenzen, bei Ampere auch Stellstufen). Warnungen bei fehlenden Istleistungs- und Anforderungsquellen sind sichtbar.
+
+Für neue Modbus-Ausgänge weiterhin zunächst **Erweiterte Einstellungen → Modbus-Schreibaktor hinzufügen** verwenden, danach im Verbraucherassistenten den entstandenen HA-Sollwertaktor auswählen. Eine vollständig integrierte Registereingabe direkt im Verbraucher-Assistenten ist für eine spätere Version vorgesehen. MQTT/OCPP bleiben über vorhandene HA-Entitäten nutzbar; ein nativer MQTT-Datenpunkteditor ist noch offen.
+
+**Sicherheit:** Die Regelung wird durch die Einrichtung nicht eingeschaltet und nach Home-Assistant-Neustart weiterhin deaktiviert. Bestehende Geräte können bereits unabhängig vom Energiemanager Leistung aufnehmen. „Unbekannt“ bedeutet keine Istleistungsmessung, nicht 0 W. Auch bei PV-Erzeugung kann Netzbezug entstehen, wenn Verbraucher mehr Energie aufnehmen als erzeugt wird. Vor dem Automatiktest Netzvorzeichen, tatsächliche Verbraucherlasten und gerätespezifische Pausewerte prüfen.
+
+---
+
 # PV-Manager 0.2.1a1 – universelle Modbus-Schreibadapter-Beta
 
 **Entwicklungsfassung, nicht ungeprüft auf reale Anlagen anwenden.**
@@ -14,7 +31,7 @@ Off und laufender Sollwert werden in diesem ersten Adapter **auf dasselbe Schrei
 
 ---
 
-# PV-Manager für Home Assistant – v0.2.0 (Modbus TCP lesen)
+# PV-Manager für Home Assistant – 0.2.2b1 (geführte Einrichtung)
 
 **Aktueller Stand:** Die bestehende PV-Überschussregelung bleibt erhalten.
 Neu: Modbus-TCP-Verbindungen und frei definierbare **Lesesensoren** werden
@@ -162,6 +179,6 @@ Unter **Entwicklerwerkzeuge → Zustände** die Modbus-Sensor-Entität auswähle
 Der PV-Manager zeigt Netz-, Batterie- und PV-Leistungen nun auch bei ausgeschaltetem Regelschalter an. Die passive Auswertung erzeugt **keine** Aktorbefehle. Die `Regelzyklen` zählen weiterhin nur aktive Regelungszyklen.
 
 
-## Modbus-Schreibaktor: Startzustand
+### Verhalten schreibbarer Modbus-Sollwerte ab 0.2.1a2
 
-Ab 0.2.1a2 darf der erste Automatik-Befehl an einen eigenen konfigurierten Modbus-Schreibaktor gesendet werden, obwohl sein HA-Zustand nach Neustart noch unknown ist. Voraussetzung sind die gültige Zuordnung zur Integration und ein ausdrücklich konfigurierter Pause-/Aus-Wert. Andere unknown- sowie alle unavailable-Aktoren bleiben gesperrt. Vor einem Test an echten Geräten müssen Aus-/Pause-Semantik und reale Leistung geprüft werden.
+Ein neu gestarteter nativer Modbus-Schreibaktor hat ohne Rücklesung den Zustand `unknown`, bis der erste Befehl erfolgreich übertragen wurde. Dies verhindert bewusst, einen unbestätigten Gerätezustand vorzutäuschen. Die EMS-Regelung darf den **ersten** Befehl dennoch an einen eindeutig zugehörigen, korrekt konfigurierten und verfügbaren PV-Manager-Schreibaktor senden. Andere unbekannte oder nicht verfügbare HA-Aktoren bleiben gesperrt. **Für echte Geräte** muss die Aus-/Pause-Semantik ausdrücklich geprüft sein und die Inbetriebnahme beaufsichtigt erfolgen. Ein anfänglich unbekannter Geräte-Istverbrauch darf nicht als physikalisch 0 W interpretiert werden.

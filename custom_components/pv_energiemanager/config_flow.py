@@ -11,6 +11,7 @@ from homeassistant.helpers import selector
 from .modbus_codec import TYPE_WIDTH, WORD_ORDER, decode_registers
 from .modbus_validation import validate_connection, validate_read_point
 from .modbus_writer import validate_write_point
+from .setup_wizard import merge_consumer, check_consumer_setup, source_power_w, signed_grid_preview, actuator_compatibility_error
 
 from .const import (
     DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE,
@@ -232,11 +233,353 @@ class PVOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
+            menu_options=["quick_system_sources", "quick_consumer_choose",
+                          "quick_diagnostics", "advanced"],
+        )
+
+    async def async_step_advanced(self, user_input=None):
+        """Retain every existing dialog for specialists and compatibility."""
+        return self.async_show_menu(
+            step_id="advanced",
             menu_options=["general", "add", "edit", "remove",
                           "modbus_connection", "modbus_edit_connection",
                           "modbus_register", "modbus_edit_register",
-                          "modbus_test_register", "modbus_remove_register", "modbus_remove_connection",
-                          "modbus_write", "modbus_edit_write", "modbus_remove_write"],
+                          "modbus_test_register", "modbus_remove_register",
+                          "modbus_remove_connection", "modbus_write",
+                          "modbus_edit_write", "modbus_remove_write"],
+        )
+
+    # --- Guided, non-destructive setup (all changes saved only at the end) ---
+
+    async def async_step_quick_system_sources(self, user_input=None):
+        merged = {**self.config_entry.data, **self.config_entry.options}
+        if user_input is not None:
+            self._quick_sources = {
+                "grid_entity": user_input["grid_entity"],
+                "pv_entity": user_input.get("pv_entity"),
+                "battery_entity": user_input.get("battery_entity"),
+            }
+            return await self.async_step_quick_system_direction()
+        return self.async_show_form(
+            step_id="quick_system_sources",
+            data_schema=vol.Schema({
+                vol.Required("grid_entity", default=merged.get("grid_entity", "")):
+                    _entity(["sensor", "number", "input_number"]),
+                vol.Optional("pv_entity", description={"suggested_value": merged.get("pv_entity")})
+                    if merged.get("pv_entity") else vol.Optional("pv_entity"):
+                    _entity(["sensor", "number", "input_number"]),
+                vol.Optional("battery_entity", description={"suggested_value": merged.get("battery_entity")})
+                    if merged.get("battery_entity") else vol.Optional("battery_entity"):
+                    _entity(["sensor", "number", "input_number"]),
+            }),
+        )
+
+    async def async_step_quick_system_direction(self, user_input=None):
+        merged = {**self.config_entry.data, **self.config_entry.options}
+        if user_input is not None:
+            self._quick_system_opts = {
+                **self._quick_sources,
+                "grid_export_positive": user_input["grid_sign"] == "plus_export",
+                "battery_charge_positive": user_input["battery_sign"] == "plus_charge",
+                "interval_s": int(user_input["interval_s"]),
+                "reserve_w": int(user_input["reserve_w"]),
+            }
+            return await self.async_step_quick_system_review()
+        return self.async_show_form(
+            step_id="quick_system_direction",
+            data_schema=vol.Schema({
+                vol.Required("grid_sign", default=("plus_export" if merged.get("grid_export_positive", True) else "minus_export")):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value="plus_export", label="Positiver Wert = Einspeisung"),
+                            selector.SelectOptionDict(value="minus_export", label="Negativer Wert = Einspeisung"),
+                        ], mode="dropdown")),
+                vol.Required("battery_sign", default=("plus_charge" if merged.get("battery_charge_positive", True) else "minus_charge")):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=[
+                            selector.SelectOptionDict(value="plus_charge", label="Positiver Wert = Laden"),
+                            selector.SelectOptionDict(value="minus_charge", label="Negativer Wert = Laden"),
+                        ], mode="dropdown")),
+                vol.Required("interval_s", default=merged.get("interval_s", DEFAULT_INTERVAL)):
+                    _num(5, 300),
+                vol.Required("reserve_w", default=merged.get("reserve_w", DEFAULT_RESERVE)):
+                    _num(0, 10000, 10),
+            }),
+        )
+
+    async def async_step_quick_system_review(self, user_input=None):
+        cfg = self._quick_system_opts
+        if user_input is not None:
+            if user_input.get("confirm"):
+                options = dict(self.config_entry.options)
+                options.update(cfg)
+                return self.async_create_entry(title="", data=options)
+            return self.async_show_form(
+                step_id="quick_system_review", data_schema=vol.Schema({
+                    vol.Required("confirm", default=False): selector.BooleanSelector()}),
+                errors={"base": "confirm_required"},
+                description_placeholders=self._quick_system_preview(),
+            )
+        return self.async_show_form(
+            step_id="quick_system_review",
+            data_schema=vol.Schema({
+                vol.Required("confirm", default=False): selector.BooleanSelector(),
+            }),
+            description_placeholders=self._quick_system_preview(),
+        )
+
+    def _quick_system_preview(self):
+        cfg = self._quick_system_opts
+        raw = source_power_w(self.hass.states.get(cfg["grid_entity"]))
+        net = signed_grid_preview(raw, cfg["grid_export_positive"])
+        battery = cfg.get("battery_entity") or "Kein Sensor (0 W angenommen)"
+        pv = cfg.get("pv_entity") or "Kein Sensor"
+        return {
+            "net": net, "grid": cfg["grid_entity"],
+            "battery": battery, "pv": pv,
+            "interval": str(cfg["interval_s"]), "reserve": str(cfg["reserve_w"]),
+        }
+
+    async def async_step_quick_consumer_choose(self, user_input=None):
+        devices = self._devices()
+        if user_input is not None:
+            chosen = user_input["consumer"]
+            self._quick_old = next((dict(d) for d in devices if d["id"] == chosen), {})
+            self._quick_basics = {}
+            self._quick_output = {}
+            self._quick_conversion = {}
+            self._quick_feedback = {}
+            return await self.async_step_quick_consumer_basics()
+        options = [selector.SelectOptionDict(value="new", label="Neuen Verbraucher anlegen")]
+        options.extend(selector.SelectOptionDict(value=d["id"], label=f"{d['name']} bearbeiten")
+                       for d in devices)
+        return self.async_show_form(
+            step_id="quick_consumer_choose",
+            data_schema=vol.Schema({
+                vol.Required("consumer", default="new"):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=options, mode="dropdown"))
+            }),
+        )
+
+    async def async_step_quick_consumer_basics(self, user_input=None):
+        old = self._quick_old
+        if user_input is not None:
+            basics = dict(user_input)
+            if int(basics["max_w"]) < int(basics["min_w"]):
+                return self.async_show_form(
+                    step_id="quick_consumer_basics", errors={"base": "limits"},
+                    data_schema=self._quick_basic_schema(basics),
+                )
+            self._quick_basics = basics
+            if basics["kind"] == TYPE_STEPPED:
+                return await self.async_step_quick_consumer_steps()
+            return await self.async_step_quick_consumer_output()
+        return self.async_show_form(
+            step_id="quick_consumer_basics", data_schema=self._quick_basic_schema(old),
+        )
+
+    def _quick_basic_schema(self, d):
+        return vol.Schema({
+            vol.Required("name", default=d.get("name", "Neuer Verbraucher")): selector.TextSelector(),
+            vol.Required("kind", default=d.get("kind", TYPE_CONTINUOUS)):
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value=TYPE_CONTINUOUS, label="Stufenlos (Watt/Ampere)"),
+                    selector.SelectOptionDict(value=TYPE_STEPPED, label="Feste Leistungsstufen"),
+                    selector.SelectOptionDict(value=TYPE_ONOFF, label="Nur Ein / Aus"),
+                ], mode="dropdown")),
+            vol.Required("priority", default=d.get("priority", 2)): _num(1, 10),
+            vol.Required("subpriority", default=d.get("subpriority", 1)): _num(1, 99),
+            vol.Required("min_w", default=d.get("min_w", 1400)): _num(0, 100000, 10),
+            vol.Required("max_w", default=d.get("max_w", 11000)): _num(1, 100000, 10),
+        })
+
+    async def async_step_quick_consumer_steps(self, user_input=None):
+        if user_input is not None:
+            self._quick_basics["steps_w"] = user_input["steps_w"]
+            return await self.async_step_quick_consumer_output()
+        return self.async_show_form(
+            step_id="quick_consumer_steps", data_schema=vol.Schema({
+                vol.Required("steps_w", default=self._quick_old.get("steps_w", "500,1000,1500,2000")):
+                    selector.TextSelector(),
+            }),
+        )
+
+    async def async_step_quick_consumer_output(self, user_input=None):
+        d = self._quick_old
+        kind = self._quick_basics["kind"]
+        if user_input is not None:
+            self._quick_output = dict(user_input)
+            if kind != TYPE_ONOFF and not user_input.get("power_output"):
+                return self.async_show_form(step_id="quick_consumer_output",
+                                            data_schema=self._quick_output_schema(user_input),
+                                            errors={"base": "missing_power_output"})
+            if kind == TYPE_ONOFF and not user_input.get("switch_output"):
+                return self.async_show_form(step_id="quick_consumer_output",
+                                            data_schema=self._quick_output_schema(user_input),
+                                            errors={"base": "missing_switch"})
+            if kind != TYPE_ONOFF and user_input["output_unit"] == "A":
+                return await self.async_step_quick_consumer_conversion()
+            return await self.async_step_quick_consumer_feedback()
+        return self.async_show_form(
+            step_id="quick_consumer_output", data_schema=self._quick_output_schema(d),
+        )
+
+    def _quick_output_schema(self, d):
+        kind = self._quick_basics["kind"]
+        out = {}
+        if kind != TYPE_ONOFF:
+            key = (vol.Optional("power_output", description={"suggested_value": d.get("power_output")})
+                   if d.get("power_output") else vol.Optional("power_output"))
+            out[key] = _entity(["number", "input_number"])
+            out[vol.Required("output_unit", default=d.get("output_unit", "W"))] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="W", label="Watt (W)"),
+                    selector.SelectOptionDict(value="kW", label="Kilowatt (kW)"),
+                    selector.SelectOptionDict(value="A", label="Ampere (A)"),
+                ], mode="dropdown")))
+        else:
+            out[vol.Required("output_unit", default="W")] = (
+                selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                    selector.SelectOptionDict(value="W", label="Watt (Ein/Aus)")
+                ], mode="dropdown")))
+        key = (vol.Optional("switch_output", description={"suggested_value": d.get("switch_output")})
+               if d.get("switch_output") else vol.Optional("switch_output"))
+        out[key] = _entity(["switch", "input_boolean"])
+        return vol.Schema(out)
+
+    async def async_step_quick_consumer_conversion(self, user_input=None):
+        if user_input is not None:
+            self._quick_conversion = dict(user_input)
+            return await self.async_step_quick_consumer_feedback()
+        d = self._quick_old
+        return self.async_show_form(
+            step_id="quick_consumer_conversion", data_schema=vol.Schema({
+                vol.Required("phases", default=str(d.get("phases", 3))):
+                    selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                        selector.SelectOptionDict(value="1", label="1 Phase"),
+                        selector.SelectOptionDict(value="3", label="3 Phasen"),
+                    ], mode="dropdown")),
+                vol.Required("voltage", default=d.get("voltage", 230)):
+                    _num(100, 260),
+            }),
+        )
+
+    async def async_step_quick_consumer_feedback(self, user_input=None):
+        old = self._quick_old
+        if user_input is not None:
+            self._quick_feedback = dict(user_input)
+            return await self.async_step_quick_consumer_review()
+        return self.async_show_form(
+            step_id="quick_consumer_feedback", data_schema=vol.Schema({
+                (vol.Optional("actual_entity", description={"suggested_value": old.get("actual_entity")})
+                 if old.get("actual_entity") else vol.Optional("actual_entity")):
+                    _entity(["sensor", "number", "input_number"]),
+                (vol.Optional("demand_entity", description={"suggested_value": old.get("demand_entity")})
+                 if old.get("demand_entity") else vol.Optional("demand_entity")):
+                    _entity(["binary_sensor", "switch", "input_boolean"]),
+            }),
+        )
+
+    def _quick_consumer_candidate(self):
+        old = self._quick_old
+        device = merge_consumer(old, self._quick_basics,
+                                self._quick_output, self._quick_feedback,
+                                self._quick_conversion)
+        device["id"] = old.get("id", uuid4().hex[:12])
+        return device
+
+    def _quick_consumer_info(self, device):
+        actor = device.get("switch_output" if device["kind"] == TYPE_ONOFF else "power_output")
+        actor_state = self.hass.states.get(actor) if actor else None
+        actual = device.get("actual_entity")
+        actual_state = self.hass.states.get(actual) if actual else None
+        warnings = check_consumer_setup(
+            device,
+            output_state=actor_state.state if actor_state else None,
+            actual_state=actual_state.state if actual_state else None,
+        )
+        if device.get("output_unit") == "A":
+            scale = f"{device.get('phases', 1)} × {device.get('voltage', 230)} V pro A"
+        else:
+            scale = device.get("output_unit", "W")
+        return {
+            "name": device["name"],
+            "range": f"{device['min_w']} bis {device['max_w']} W",
+            "priority": f"{device['priority']}.{device['subpriority']}",
+            "actor": actor or "KEIN AKTOR",
+            "scale": scale,
+            "actual": actual or "Kein Sensor",
+            "demand": device.get("demand_entity") or "Immer Ja",
+            "warnings": " | ".join(warnings) if warnings else "Keine offensichtlichen Zuordnungswarnungen",
+        }
+
+    async def async_step_quick_consumer_review(self, user_input=None):
+        candidate = self._quick_consumer_candidate()
+        errors = {}
+        if user_input is not None:
+            normalized, error = _validate_device(candidate)
+            if error:
+                errors["base"] = error
+            else:
+                actuator_id = (normalized.get("switch_output") if normalized["kind"] == TYPE_ONOFF
+                               else normalized.get("power_output"))
+                actuator_state = self.hass.states.get(actuator_id) if actuator_id else None
+                mismatch = actuator_compatibility_error(normalized, actuator_state)
+                if mismatch:
+                    errors["base"] = mismatch
+                others = {d.get(key) for d in self._devices()
+                          if d["id"] != normalized["id"]
+                          for key in ("power_output", "switch_output") if d.get(key)}
+                if any(normalized.get(k) in others for k in ("power_output", "switch_output")
+                       if normalized.get(k)):
+                    errors["base"] = "duplicate_output"
+                elif not errors and not user_input.get("confirm"):
+                    errors["base"] = "confirm_required"
+                if not errors:
+                    if self._quick_old:
+                        devices = [normalized if d["id"] == normalized["id"] else d
+                                   for d in self._devices()]
+                    else:
+                        devices = [*self._devices(), normalized]
+                    return self._save(devices=devices)
+        return self.async_show_form(
+            step_id="quick_consumer_review",
+            data_schema=vol.Schema({
+                vol.Required("confirm", default=False): selector.BooleanSelector(),
+            }),
+            errors=errors,
+            description_placeholders=self._quick_consumer_info(candidate),
+        )
+
+    async def async_step_quick_diagnostics(self, user_input=None):
+        if user_input is not None:
+            return await self.async_step_init()
+        cfg = {**self.config_entry.data, **self.config_entry.options}
+        grid_name = cfg.get("grid_entity")
+        grid = source_power_w(self.hass.states.get(grid_name)) if grid_name else None
+        preview = signed_grid_preview(grid, cfg.get("grid_export_positive", True))
+        manager = getattr(self.config_entry, "runtime_data", None)
+        rows = []
+        for d in self._devices():
+            actor_id = d.get("switch_output") if d.get("kind") == TYPE_ONOFF else d.get("power_output")
+            actor_state = self.hass.states.get(actor_id) if actor_id else None
+            actual_id = d.get("actual_entity")
+            actual_state = self.hass.states.get(actual_id) if actual_id else None
+            warnings = check_consumer_setup(d,
+                output_state=actor_state.state if actor_state else None,
+                actual_state=actual_state.state if actual_state else None)
+            rows.append(f"{d['name']}: {actor_id or 'kein Ausgang'}; " +
+                        (" | ".join(warnings) if warnings else "Zuordnung plausibel"))
+        return self.async_show_form(
+            step_id="quick_diagnostics", data_schema=vol.Schema({}),
+            description_placeholders={
+                "grid": preview,
+                "sensor": grid_name or "Nicht konfiguriert",
+                "status": getattr(manager, "status", "Nicht verfügbar"),
+                "error": getattr(manager, "error", "") or "Kein Fehler gemeldet",
+                "devices": " || ".join(rows) if rows else "Noch keine Verbraucher",
+            },
         )
 
     async def async_step_general(self, user_input=None):

@@ -1,9 +1,22 @@
-## 0.2.1a2 — Startzustand des Modbus-Schreibaktors korrigiert
+## 0.2.2b1 – Einfache Einrichtung und Diagnosen
 
-- Eigene, eindeutig registrierte Modbus-Schreibaktoren dürfen beim ersten Regelbefehl den ehrlichen HA-Initialzustand unknown besitzen.
-- Wirklich unavailable, fremde oder fehlerhaft konfigurierte Aktoren bleiben gesperrt.
-- Sicherheitsprüfung der Pause-/Aus-Zuordnung und verständlichere Fehlermeldung.
-- Keine Änderung der Verteilungslogik und bestehenden Konfigurationen.
+- Neues Hauptmenü: Anlage einrichten, Verbraucher einrichten, Einstellungen prüfen, Erweiterte Einstellungen.
+- Geführte mehrstufige Einrichtungsdialoge mit Dropdowns für HA-Entitäten, Reglerart, Geräteeinheit und Phase.
+- Bestehende Verbraucher über Assistent bearbeiten, IDs und Zeit-/Sicherheitsparameter erhalten.
+- Netzvorzeichen und aktuelle physikalische Interpretation vor Speichern anzeigen.
+- Aktor-Zuordnung vor Speichern auf Vorhandensein, Einheit, Gerätebereich, Stellstufen prüfen.
+- Deutliche Hinweise zu fehlender Istleistungsmessung und dauerhaft angenommener Anforderung.
+- Vorhandene Modbus-Lese- und Schreibpunkte sowie die reine Verteilungslogik bleiben unverändert.
+- Kein automatischer Start der Regelung; keine Schreibbefehle beim Einrichtungscheck.
+- Erweiterte Einstellungen behalten alle bisherigen technischen Formulare.
+
+## 0.2.1a2 — Schreibhürde bei unbekanntem Initialzustand behoben
+
+- Modbus-Schreibaktoren ohne Readback starten weiterhin ehrlich mit HA-Zustand `unknown`.
+- Nur für eindeutig registrierte, eigene PV-Manager-Modbus-`number`-Entitäten mit explizit konfiguriertem Aus-/Pausewert ist ein erster EMS-Schreibbefehl trotz `unknown` erlaubt.
+- Fehlende, `unavailable`, fremde oder mit Schreibfehlern markierte Aktoren bleiben gesperrt.
+- Fehlermeldung nennt jetzt den tatsächlichen Home-Assistant-Zustand.
+- Regelungsformel, Benutzer-Konfiguration und Geräteübersetzung unverändert.
 
 ## 0.2.1a1 — Universeller Modbus-Schreibadapter (Entwicklungsbranch)
 
