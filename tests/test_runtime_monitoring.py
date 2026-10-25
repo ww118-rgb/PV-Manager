@@ -295,6 +295,8 @@ class RuntimeMonitoringTests(unittest.TestCase):
         asyncio.run(manager.async_cycle())
         self.assertEqual(services.calls, [14.0])
         self.assertEqual(manager.last_targets["wb"], 9660)
+        self.assertEqual(manager.values["assigned"], 9660)
+        self.assertEqual(manager.values["unallocated"], 340)
         states.data["sensor.grid"].state = "340"
         asyncio.run(manager.async_cycle())
         self.assertEqual(services.calls, [14.0])

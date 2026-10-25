@@ -467,8 +467,6 @@ class PowerManager:
                 execution = distribute(budget, self._build_consumers(now, preview=False))
                 desired = execution.targets
                 self.group_records = execution.group_records
-                self.values["assigned"] = sum(desired.values())
-                self.values["unallocated"] = round(execution.unallocated, 1)
                 self.cycle_count += 1
 
                 # Explicit zero synchronisation is necessary on arming,
@@ -489,6 +487,14 @@ class PowerManager:
                     if (desired[d["id"]] > 0 and
                             self._reconcile_active_setpoint(d, desired[d["id"]], now)):
                         await self._write(d, desired[d["id"]], force=True)
+                # Display *transmitted effective* targets after the W -> device
+                # unit quantization, not theoretical unrounded allocation.
+                # This is monitoring only: the core distribution is unchanged.
+                effective_assigned = sum(self.last_targets.get(d["id"], 0)
+                                         for d in self.devices)
+                self.values["assigned"] = effective_assigned
+                self.values["unallocated"] = round(
+                    max(0.0, budget - effective_assigned), 1)
                 if self._unconfirmed_stop:
                     names = ", ".join(d["name"] for d in self.devices
                                       if d["id"] in self._unconfirmed_stop)

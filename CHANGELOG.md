@@ -1,3 +1,11 @@
+## 0.2.2b5 — Anzeige nach Ampere-Rundung korrigiert
+
+- Zugewiesene Leistung zeigt nun die Summe der tatsächlich als Gerätesollwerte übertragenen, quantisierten Leistungen, statt der theoretisch geplanten Wattwerte.
+- Nicht weitergereichte Leistung bezieht die nach einer Gerätestufe verbleibende Differenz ein.
+- Beispiel: 11.000 W geplante Obergrenze bei dreiphasiger 230-V-Wallbox mit 1-A-Schritten führt zu 15 A = 10.350 W; die 650 W je Wallbox sind nicht zugewiesen.
+- Die eigentliche Prioritäts- und Leistungsregelung sowie die Modbus-Ausgabe bleiben unverändert.
+- Weiterhin wichtig: Gemessener Netzexport und dieser rechnerische Rest unterscheiden sich durch Sensor-/Abfragezeitpunkte, Reserve und andere Lasten.
+
 ## 0.2.2b4 — Null-Sollwert aktiv senden, Istlast-Budget absichern
 
 - Beim Einschalten werden Verbraucher mit Sollwert 0 W ausdrücklich über den konfigurierten Pause-/Aus-Befehl synchronisiert; 0 W intern bedeutet nicht automatisch, dass die Hardware gestoppt hat.
