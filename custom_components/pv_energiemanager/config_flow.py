@@ -256,30 +256,49 @@ class PVOptionsFlow(config_entries.OptionsFlow):
     async def async_step_init(self, user_input=None):
         return self.async_show_menu(
             step_id="init",
-            menu_options=["quick_modbus_setup", "quick_system_sources",
-                          "quick_consumer_choose", "quick_diagnostics", "advanced"],
+            menu_options=["quick_system_sources", "quick_consumer_choose",
+                          "quick_data_points", "quick_connections",
+                          "quick_diagnostics", "advanced"],
         )
 
     async def async_step_quick_modbus_setup(self, user_input=None):
-        """Create a Modbus connection before creating its first read sensor."""
-        options = ["modbus_connection"]
+        """Compatibility route for an earlier setup entry point."""
+        return self.async_show_menu(
+            step_id="quick_modbus_setup",
+            menu_options=["quick_connections", "quick_read_point_choose",
+                          "quick_system_sources"],
+        )
+
+    async def async_step_quick_data_points(self, user_input=None):
+        """Manage read and write points from one comprehensible location."""
+        choices = ["quick_read_point_choose"]
         if self._connections():
-            options.append("modbus_register")
-        if self._registers():
-            options.append("modbus_test_register")
-        options.append("quick_system_sources")
-        return self.async_show_menu(step_id="quick_modbus_setup", menu_options=options)
+            choices.append("modbus_write")
+        if self._write_points():
+            choices.append("modbus_edit_write")
+            choices.append("modbus_remove_write")
+        return self.async_show_menu(step_id="quick_data_points", menu_options=choices)
+
+    async def async_step_quick_connections(self, user_input=None):
+        """Connections are a separate object, not fifteen advanced actions."""
+        choices = ["modbus_connection"]
+        if self._connections():
+            choices.extend(["modbus_edit_connection", "modbus_remove_connection"])
+        return self.async_show_menu(step_id="quick_connections", menu_options=choices)
+
+    async def async_step_advanced_consumers(self, user_input=None):
+        return self.async_show_menu(
+            step_id="advanced_consumers", menu_options=["add", "edit", "remove"],
+        )
 
     async def async_step_advanced(self, user_input=None):
-        """Retain every existing dialog for specialists and compatibility."""
+        """Specialist choices are grouped instead of overwhelming the user."""
         return self.async_show_menu(
-            step_id="advanced",
-            menu_options=["general", "add", "edit", "remove",
-                          "modbus_connection", "modbus_edit_connection",
-                          "modbus_register", "modbus_edit_register",
-                          "modbus_test_register", "modbus_remove_register",
-                          "modbus_remove_connection", "modbus_write",
-                          "modbus_edit_write", "modbus_remove_write"],
+            step_id="advanced", menu_options=[
+                "general", "advanced_consumers", "quick_connections",
+                "quick_data_points", "modbus_test_register",
+                "modbus_remove_register",
+            ],
         )
 
     # --- Guided, non-destructive setup (all changes saved only at the end) ---
@@ -784,6 +803,168 @@ class PVOptionsFlow(config_entries.OptionsFlow):
 
     def _write_points(self):
         return list(self.config_entry.options.get("modbus_write_points", []))
+
+    async def async_step_quick_read_point_choose(self, user_input=None):
+        """Choose new or existing read sensor; keep its stable ID when editing."""
+        connections = self._connections()
+        if not connections:
+            return self.async_show_menu(
+                step_id="quick_read_point_choose",
+                menu_options=["modbus_connection", "quick_connections"],
+            )
+        if user_input is not None:
+            ident = user_input["register_id"]
+            old = next((dict(point) for point in self._registers()
+                        if point["id"] == ident), None) if ident != "new" else None
+            if ident != "new" and old is None:
+                return self.async_abort(reason="no_modbus_registers")
+            self._quick_read_id = old["id"] if old else None
+            self._quick_read_draft = old or {}
+            self._quick_read_result = ""
+            self._quick_read_tested = None
+            return await self.async_step_quick_read_point_form()
+        options = [selector.SelectOptionDict(
+            value="new", label="Neuen Modbus-Lesesensor anlegen",
+        )]
+        options.extend(selector.SelectOptionDict(
+            value=r["id"], label=f"{r['name']} bearbeiten",
+        ) for r in self._registers())
+        return self.async_show_form(
+            step_id="quick_read_point_choose",
+            data_schema=vol.Schema({
+                vol.Required("register_id", default="new"):
+                    selector.SelectSelector(selector.SelectSelectorConfig(
+                        options=options, mode="dropdown")),
+            }),
+        )
+
+    @staticmethod
+    def _quick_read_signature(config: dict) -> tuple:
+        """An edited draft must be retested before it can be saved."""
+        return tuple(sorted((key, value) for key, value in config.items()
+                            if key != "id"))
+
+    def _quick_read_schema(self, values: dict):
+        """Existing register fields plus one explicit workflow action."""
+        base_schema = _modbus_register_schema(self._connections(), values)
+        schema = dict(base_schema.schema if hasattr(base_schema, "schema")
+                      else base_schema)
+        schema[vol.Required("wizard_action", default="test")] = (
+            selector.SelectSelector(selector.SelectSelectorConfig(options=[
+                selector.SelectOptionDict(value="test", label="Verbindung und Register testen"),
+                selector.SelectOptionDict(value="save", label="Geprüfte Einstellungen speichern"),
+                selector.SelectOptionDict(value="back", label="Zur Sensor-Auswahl zurück"),
+            ], mode="dropdown")))
+        return vol.Schema(schema)
+
+    async def _quick_read_test(self, reg: dict) -> tuple[bool, str]:
+        """Read only the current unsaved draft, never touch write registers."""
+        from homeassistant.components.modbus import async_get_temporary_unit
+        from modbus_connection import ModbusTcpParams
+        import asyncio
+
+        connection = next((conn for conn in self._connections()
+                           if conn["id"] == reg["connection_id"]), None)
+        if connection is None:
+            return False, "Verbindung nicht mehr vorhanden."
+        try:
+            async with asyncio.timeout(10):
+                async with async_get_temporary_unit(
+                    self.hass,
+                    ModbusTcpParams(
+                        host=connection["host"], port=int(connection["port"])),
+                    int(connection["unit_id"]),
+                ) as unit:
+                    read = (unit.read_holding_registers
+                            if int(reg["function_code"]) == 3
+                            else unit.read_input_registers)
+                    registers = list(await read(
+                        int(reg["address"]), TYPE_WIDTH[reg["data_type"]]))
+                decoded = decode_registers(
+                    registers, reg["data_type"], reg["byte_order"],
+                    reg["scale"], reg["offset"],
+                )
+            return True, (
+                f"Lesetest erfolgreich: {decoded:g} {reg.get('unit', '')} "
+                f"(Rohregister: {registers}; FC{reg['function_code']}; "
+                f"Adresse {reg['address']}). "
+                "Bitte prüfen, ob der Wert physikalisch sinnvoll ist."
+            )
+        except Exception as exc:
+            return False, (
+                f"Lesetest fehlgeschlagen: {type(exc).__name__}: {exc}. "
+                "Angaben korrigieren und erneut testen; nichts gespeichert."
+            )
+
+    async def async_step_quick_read_point_form(self, user_input=None):
+        """Configure, test, correct, retest and save in the SAME form.
+
+        A test only performs Modbus reads. The options entry, existing entity
+        ID and runtime sensor are untouched until Save is explicitly selected.
+        """
+        if not self._connections():
+            return self.async_abort(reason="no_modbus_connections")
+        if not hasattr(self, "_quick_read_draft"):
+            return await self.async_step_quick_read_point_choose()
+
+        errors = {}
+        if user_input is not None:
+            action = user_input.get("wizard_action", "test")
+            if action == "back":
+                return await self.async_step_quick_read_point_choose()
+            draft = {key: value for key, value in user_input.items()
+                     if key != "wizard_action"}
+            normalized, error = validate_read_point(
+                draft, {conn["id"] for conn in self._connections()})
+            self._quick_read_draft = normalized if not error else draft
+            if error:
+                errors["base"] = error
+                self._quick_read_result = (
+                    "Eingaben prüfen und korrigieren; noch nicht gespeichert."
+                )
+            elif action == "test":
+                success, result = await self._quick_read_test(normalized)
+                self._quick_read_result = result
+                self._quick_read_tested = (
+                    self._quick_read_signature(normalized) if success else None
+                )
+                if not success:
+                    errors["base"] = "read_test_failed"
+            elif action == "save":
+                if self._quick_read_tested != self._quick_read_signature(normalized):
+                    errors["base"] = "read_test_required"
+                    self._quick_read_result = (
+                        "Bitte diese Einstellungen zuerst erfolgreich testen. "
+                        "Nach jeder Änderung ist ein erneuter Test erforderlich."
+                    )
+                else:
+                    point = dict(normalized)
+                    point["id"] = self._quick_read_id or uuid4().hex[:12]
+                    options = dict(self.config_entry.options)
+                    current = self._registers()
+                    if self._quick_read_id:
+                        if not any(p["id"] == self._quick_read_id for p in current):
+                            return self.async_abort(reason="no_modbus_registers")
+                        options["modbus_registers"] = [
+                            point if p["id"] == self._quick_read_id else p
+                            for p in current
+                        ]
+                    else:
+                        options["modbus_registers"] = [*current, point]
+                    return self.async_create_entry(title="", data=options)
+
+        return self.async_show_form(
+            step_id="quick_read_point_form",
+            data_schema=self._quick_read_schema(self._quick_read_draft),
+            errors=errors,
+            description_placeholders={
+                "result": self._quick_read_result or (
+                    "Noch nicht getestet. Du kannst Eingaben ändern und "
+                    "beliebig oft einen neuen Lesetest durchführen. "
+                    "Vor dem erfolgreichen Test wird nichts gespeichert."
+                ),
+            },
+        )
 
     async def async_step_modbus_write(self, user_input=None):
         """Create a write-only number with explicitly defined stop semantics."""

@@ -100,7 +100,9 @@ class WizardFlowTests(unittest.TestCase):
         flow.hass = types.SimpleNamespace(states=States())
         flow.config_entry = types.SimpleNamespace(
             data={'grid_entity': 'sensor.grid', 'grid_export_positive': True},
-            options={'devices': devices or [], 'modbus_connections': [{'id':'c', 'name':'Wallbox'}]})
+            options={'devices': devices or [], 'modbus_connections': [
+                {'id':'c', 'name':'Wallbox', 'host':'127.0.0.1', 'port':502, 'unit_id':1}
+            ]})
         return flow
 
     def do_step(self, fn, user_input=None):
@@ -110,8 +112,15 @@ class WizardFlowTests(unittest.TestCase):
         flow = self.flow()
         menu = self.do_step(flow.async_step_init)
         self.assertEqual(menu['menu_options'], [
-            'quick_modbus_setup', 'quick_system_sources', 'quick_consumer_choose',
+            'quick_system_sources', 'quick_consumer_choose',
+            'quick_data_points', 'quick_connections',
             'quick_diagnostics', 'advanced'])
+        expert=self.do_step(flow.async_step_advanced)
+        self.assertLessEqual(len(expert['menu_options']),6)
+        datapoints=self.do_step(flow.async_step_quick_data_points)
+        self.assertIn('quick_read_point_choose',datapoints['menu_options'])
+        connections=self.do_step(flow.async_step_quick_connections)
+        self.assertIn('modbus_connection',connections['menu_options'])
 
     def test_first_installation_without_any_sensor_creates_config_entry(self):
         flow = self.flow_mod.PVConfigFlow()
@@ -135,10 +144,15 @@ class WizardFlowTests(unittest.TestCase):
         flow.config_entry.data = {}
         flow.config_entry.options['modbus_connections'] = []
         menu = self.do_step(flow.async_step_quick_modbus_setup)
-        self.assertEqual(menu['menu_options'], ['modbus_connection', 'quick_system_sources'])
-        flow.config_entry.options['modbus_connections'] = [{'id':'new', 'name':'PV'}]
-        menu = self.do_step(flow.async_step_quick_modbus_setup)
-        self.assertIn('modbus_register', menu['menu_options'])
+        self.assertEqual(menu['menu_options'],
+            ['quick_connections','quick_read_point_choose','quick_system_sources'])
+        selection=self.do_step(flow.async_step_quick_read_point_choose)
+        self.assertEqual(selection['type'],'menu')
+        self.assertIn('modbus_connection',selection['menu_options'])
+        flow.config_entry.options['modbus_connections'] = [
+            {'id':'new', 'name':'PV', 'host':'127.0.0.1','port':502,'unit_id':1}]
+        selection=self.do_step(flow.async_step_quick_read_point_choose)
+        self.assertEqual(selection['type'],'form')
 
     def test_site_wizard_previews_direction_without_writing(self):
         flow = self.flow()
@@ -210,6 +224,117 @@ class WizardFlowTests(unittest.TestCase):
         self.assertEqual(flow._quick_basics['min_w'],4000)
         self.assertEqual(flow._quick_output['power_output'],'number.wallbox')
         self.assertEqual(flow._quick_feedback['actual_entity'],'sensor.real_power')
+
+    def read_input(self, **kw):
+        result = dict(connection_id='c', name='Netzleistung', address=100,
+                      function_code='3', data_type='uint16', byte_order='ABCD',
+                      scale=1.0, offset=0, unit='W', poll_seconds=5)
+        result.update(kw)
+        return result
+
+    @staticmethod
+    def modbus_stub(values=None, error=None):
+        class Unit:
+            async def read_holding_registers(self, addr, count):
+                if error:
+                    raise ConnectionError(error)
+                return list(values if values is not None else [1250])
+            async def read_input_registers(self, addr, count):
+                return await self.read_holding_registers(addr,count)
+        class Context:
+            async def __aenter__(self):return Unit()
+            async def __aexit__(self,*args):return False
+        return {
+            'homeassistant.components': mod('homeassistant.components'),
+            'homeassistant.components.modbus': mod(
+                'homeassistant.components.modbus',
+                async_get_temporary_unit=lambda *args, **kwargs: Context()),
+            'modbus_connection': mod('modbus_connection',
+                ModbusTcpParams=lambda **kwargs: kwargs),
+        }
+
+    def test_new_modbus_sensor_test_correct_retest_save(self):
+        flow=self.flow()
+        selection=self.do_step(flow.async_step_quick_read_point_choose,
+                               {'register_id':'new'})
+        self.assertEqual(selection['step_id'],'quick_read_point_form')
+        self.assertEqual(flow.config_entry.options.get('modbus_registers'),None)
+        # Saving before any test is refused and does not create a sensor.
+        denied=self.do_step(flow.async_step_quick_read_point_form,
+                            self.read_input(wizard_action='save'))
+        self.assertEqual(denied['errors']['base'],'read_test_required')
+        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
+        # Successful live test returns to exactly the same editable form.
+        with patch.dict(sys.modules,self.modbus_stub([1250])):
+            result=self.do_step(flow.async_step_quick_read_point_form,
+                                self.read_input(wizard_action='test'))
+        self.assertEqual(result['step_id'],'quick_read_point_form')
+        self.assertIn('1250',result['description_placeholders']['result'])
+        self.assertIsNone(result['errors'].get('base'))
+        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
+        # Corrections require retesting; no stale successful test accepted.
+        refused=self.do_step(flow.async_step_quick_read_point_form,
+                     self.read_input(scale=0.1,wizard_action='save'))
+        self.assertEqual(refused['errors']['base'],'read_test_required')
+        with patch.dict(sys.modules,self.modbus_stub([1250])):
+            retested=self.do_step(flow.async_step_quick_read_point_form,
+                         self.read_input(scale=0.1,wizard_action='test'))
+        self.assertIn('125',retested['description_placeholders']['result'])
+        saved=self.do_step(flow.async_step_quick_read_point_form,
+                           self.read_input(scale=0.1,wizard_action='save'))
+        self.assertEqual(saved['type'],'create_entry')
+        self.assertEqual(len(saved['data']['modbus_registers']),1)
+        self.assertEqual(saved['data']['modbus_registers'][0]['scale'],0.1)
+        self.assertTrue(saved['data']['modbus_registers'][0]['id'])
+
+    def test_failed_modbus_read_can_be_corrected_without_persisting(self):
+        flow=self.flow()
+        self.do_step(flow.async_step_quick_read_point_choose,{'register_id':'new'})
+        with patch.dict(sys.modules,self.modbus_stub(error='device offline')):
+            failed=self.do_step(flow.async_step_quick_read_point_form,
+                           self.read_input(address=50,wizard_action='test'))
+        self.assertEqual(failed['errors']['base'],'read_test_failed')
+        self.assertIn('device offline',failed['description_placeholders']['result'])
+        self.assertEqual(flow._quick_read_draft['address'],50)
+        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
+        with patch.dict(sys.modules,self.modbus_stub([777])):
+            corrected=self.do_step(flow.async_step_quick_read_point_form,
+                           self.read_input(address=51,wizard_action='test'))
+        self.assertIn('777',corrected['description_placeholders']['result'])
+        saved=self.do_step(flow.async_step_quick_read_point_form,
+                           self.read_input(address=51,wizard_action='save'))
+        self.assertEqual(saved['data']['modbus_registers'][0]['address'],51)
+
+    def test_existing_sensor_edit_preserves_id_and_others(self):
+        flow=self.flow()
+        old=self.read_input()
+        old['id']='keep-this-id'
+        other=self.read_input(id='untouched',name='Batterie',address=200)
+        flow.config_entry.options['modbus_registers']=[old,other]
+        selected=self.do_step(flow.async_step_quick_read_point_choose,
+                              {'register_id':'keep-this-id'})
+        self.assertEqual(selected['step_id'],'quick_read_point_form')
+        self.assertEqual(flow._quick_read_draft['address'],100)
+        # Existing registry is still untouched after a test.
+        with patch.dict(sys.modules,self.modbus_stub([987])):
+            test=self.do_step(flow.async_step_quick_read_point_form,
+                              self.read_input(address=101,wizard_action='test'))
+        self.assertIn('987',test['description_placeholders']['result'])
+        self.assertEqual(flow.config_entry.options['modbus_registers'][0]['address'],100)
+        saved=self.do_step(flow.async_step_quick_read_point_form,
+                              self.read_input(address=101,wizard_action='save'))
+        values=saved['data']['modbus_registers']
+        self.assertEqual(values[0]['id'],'keep-this-id')
+        self.assertEqual(values[0]['address'],101)
+        self.assertEqual(values[1],other)
+
+    def test_sensor_wizard_back_does_not_modify_configuration(self):
+        flow=self.flow()
+        self.do_step(flow.async_step_quick_read_point_choose,{'register_id':'new'})
+        result=self.do_step(flow.async_step_quick_read_point_form,
+                            self.read_input(wizard_action='back'))
+        self.assertEqual(result['step_id'],'quick_read_point_choose')
+        self.assertFalse(flow.config_entry.options.get('modbus_registers'))
 
     def test_wrong_unit_blocks_save(self):
         flow = self.flow()

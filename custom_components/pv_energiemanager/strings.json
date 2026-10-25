@@ -19,11 +19,12 @@
       "init": {
         "title": "Manage energy manager",
         "menu_options": {
-          "quick_system_sources": "1. Set up site",
-          "quick_consumer_choose": "2. Set up consumer",
-          "quick_diagnostics": "3. Check setup",
-          "advanced": "Advanced settings",
-          "quick_modbus_setup": "Add Modbus data source"
+          "quick_system_sources": "Set up or edit site",
+          "quick_consumer_choose": "Set up or edit consumers",
+          "quick_data_points": "Data points – sensors and actuators",
+          "quick_connections": "Connections – Modbus TCP",
+          "quick_diagnostics": "Review setup and diagnostics",
+          "advanced": "Advanced settings"
         }
       },
       "general": {
@@ -230,20 +231,12 @@
       "advanced": {
         "title": "Advanced settings",
         "menu_options": {
-          "general": "General settings",
-          "add": "Add consumer",
-          "edit": "Edit consumer",
-          "remove": "Remove consumer",
-          "modbus_connection": "Add Modbus TCP device",
-          "modbus_edit_connection": "Edit Modbus device",
-          "modbus_register": "Add Modbus read-only sensor",
-          "modbus_edit_register": "Edit Modbus sensor",
-          "modbus_test_register": "Read Modbus register (connection test)",
-          "modbus_remove_register": "Remove Modbus sensor",
-          "modbus_remove_connection": "Remove Modbus device",
-          "modbus_write": "Add Modbus write actuator",
-          "modbus_edit_write": "Edit Modbus write actuator",
-          "modbus_remove_write": "Remove Modbus write actuator"
+          "general": "General control settings",
+          "advanced_consumers": "Consumers – expert management",
+          "quick_connections": "Manage connections",
+          "quick_data_points": "Manage data points",
+          "modbus_test_register": "Test existing Modbus register",
+          "modbus_remove_register": "Delete Modbus read sensor"
         }
       },
       "quick_system_sources": {
@@ -342,13 +335,67 @@
         "description": "Grid sensor: {sensor}. **Grid: {grid}**. Status: {status}; latest error: {error}. **Consumers:** {devices}. This check sends no commands."
       },
       "quick_modbus_setup": {
-        "title": "Create a Modbus grid sensor",
-        "description": "Add the Modbus TCP device first, then add its read sensor and register settings. Afterwards choose this sensor under Site setup as grid power. Reuse existing Modbus connections.",
+        "title": "Modbus setup",
+        "description": "Create a connection first, then configure and repeatedly test a read sensor in the same form.",
         "menu_options": {
-          "modbus_connection": "1. Add Modbus TCP device",
-          "modbus_register": "2. Add Modbus read sensor",
-          "modbus_test_register": "3. Test-read register",
-          "quick_system_sources": "4. Assign sensor to the site"
+          "quick_connections": "1. Modbus connections",
+          "quick_read_point_choose": "2. Create/test Modbus sensor",
+          "quick_system_sources": "3. Assign sensor to site"
+        }
+      },
+      "advanced_consumers": {
+        "title": "Consumers – expert functions",
+        "menu_options": {
+          "add": "Add consumer (expert mode)",
+          "edit": "Edit consumer (expert mode)",
+          "remove": "Remove consumer"
+        }
+      },
+      "quick_data_points": {
+        "title": "Manage data points",
+        "description": "Create, test and edit Modbus read sensors in one place. Write actuators are configured separately; read tests never send commands. Existing Home Assistant entities can be assigned under Site or Consumers.",
+        "menu_options": {
+          "quick_read_point_choose": "Create or edit Modbus read sensor",
+          "modbus_write": "Create Modbus write actuator",
+          "modbus_edit_write": "Edit Modbus write actuator",
+          "modbus_remove_write": "Remove Modbus write actuator"
+        }
+      },
+      "quick_connections": {
+        "title": "Manage Modbus TCP connections",
+        "description": "A connection can be reused by multiple sensors and actuators. Connection and data point are separate objects.",
+        "menu_options": {
+          "modbus_connection": "Add Modbus TCP connection",
+          "modbus_edit_connection": "Edit connection",
+          "modbus_remove_connection": "Remove connection"
+        }
+      },
+      "quick_read_point_choose": {
+        "title": "Choose Modbus read sensor",
+        "description": "Create a new sensor or edit an existing sensor. Editing preserves its identifier.",
+        "data": {
+          "register_id": "Select new or existing sensor"
+        },
+        "menu_options": {
+          "modbus_connection": "Add a Modbus connection first",
+          "quick_connections": "Manage connections"
+        }
+      },
+      "quick_read_point_form": {
+        "title": "Modbus read sensor – configure and test",
+        "description": "**Latest test result:** {result}\n\nYou can edit any field and test again. A successful read test is required before saving. Successful communication does not guarantee the decoded value is physically correct. Testing **never writes or saves anything**.",
+        "data": {
+          "connection_id": "Modbus device",
+          "name": "Sensor name",
+          "address": "Register address (zero-based)",
+          "function_code": "Read function code (FC03/FC04)",
+          "data_type": "Register data type",
+          "byte_order": "Byte/word order (32-bit)",
+          "scale": "Scaling factor (value = raw × scale + offset)",
+          "offset": "Offset",
+          "unit": "Physical unit, e.g. W",
+          "poll_seconds": "Polling interval in seconds",
+          "wizard_action": "Action after editing"
         }
       }
     },
@@ -370,7 +417,9 @@
       "unavailable_actuator": "Actuator unavailable or not ready.",
       "actuator_unit_mismatch": "Actuator unit does not match selected output unit.",
       "actuator_limits_mismatch": "Power range does not fit actuator limits.",
-      "actuator_step_mismatch": "Minimum power cannot be represented by actuator steps."
+      "actuator_step_mismatch": "Minimum power cannot be represented by actuator steps.",
+      "read_test_required": "Test the current settings successfully before saving.",
+      "read_test_failed": "Connection or register test failed. Review the result and edit settings below."
     },
     "abort": {
       "no_devices": "No consumers configured.",

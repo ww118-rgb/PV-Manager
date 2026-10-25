@@ -1,3 +1,9 @@
+## Neue Datenpunktverwaltung ab 0.3.1b1
+
+Unter **Konfigurieren** gibt es übersichtliche Bereiche für Anlage, Verbraucher, Datenpunkte, Verbindungen, Diagnose und Expertenfunktionen. Unter **Datenpunkte → Modbus-Lesesensor anlegen oder bearbeiten** kann ein vorhandener Sensor ausgewählt oder ein neuer begonnen werden. Im selben Formular lassen sich Adresse, FC03/FC04, Datentyp, Bytefolge, Skalierung, Offset, Einheit und Pollintervall anpassen. Über **Verbindung und Register testen** wird die **noch nicht gespeicherte Eingabe** testweise gelesen. Das Ergebnis enthält den physikalisch dekodierten Wert und die Rohregister; beim Fehlschlag bleiben die Eingaben zum Korrigieren offen. Danach kann erneut getestet werden. Erst **Geprüfte Einstellungen speichern** übernimmt den Sensor dauerhaft und lädt die Integration wie bei anderen Optionsänderungen neu. Nach jeder technischen Änderung ist ein neuer erfolgreicher Test erforderlich. Testen schreibt **niemals** Register.
+
+Vorhandene Sensoren behalten beim Bearbeiten ihre technische ID. Bereits vorhandene HA-Entitäten (z. B. Fronius/Huawei) werden weiterhin unter Anlage oder Verbraucher ausgewählt; der Manager erstellt dafür keine Doppel-Entität. MQTT und OCPP arbeiten bisher über passende HA-Entitäten. Modbus-Schreibaktoren werden separat eingerichtet und nicht automatisch testweise betätigt. Der **Regler** bleibt unverändert auf Version 0.3.0b1.
+
 ## Der einfache Regelzyklus (ab Version 0.3.0b1)
 
 Der PV Energiemanager hat **einen** Ablauf: (1) Sensor-Snapshot, (2) verfügbare Leistung berechnen, (3) alle Prioritätsgruppen mit den tatsächlichen Gerätestufen verteilen, (4) Sollwerte der Geräte schreiben, (5) **erst nach Abschluss 15 Sekunden warten**. Kein zusätzlicher Regler schreibt alle 5 Sekunden; keine künstliche Ampere-Rampe und keine mehrzyklische Regler-Freigabe. Modbus-Lesesensoren dürfen unabhängig weiter alle 5 Sekunden aktualisieren.

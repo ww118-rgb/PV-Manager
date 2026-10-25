@@ -1,3 +1,14 @@
+## 0.3.1b1 — Navigierbare Datenpunkte und Modbus-Lesetest vor dem Speichern
+
+- Hauptmenü neu gruppiert in **Anlage**, **Verbraucher**, **Datenpunkte**, **Verbindungen**, **Diagnose** und **Erweiterte Einstellungen**. Das bisherige überlange Expertenmenü ist in wenige verständliche Themen aufgeteilt. Bereits existierende Optionen- und Gerätekennungen bleiben erhalten.
+- **Modbus-Lesesensoren erstellen und bearbeiten:** neuen oder bestehenden Sensor auswählen, Register/Typ/Skalierung eingeben, die **ungespeicherte Konfiguration testweise lesen**, Rohregister und dekodierten Wert ansehen, dieselben Felder korrigieren und erneut testen; abschließend per ausdrücklicher Aktion speichern.
+- Änderungen werden nur bei erfolgreichem Lesetest **exakt der zu speichernden Einstellungen** zugelassen. Fehler oder Zurück führen weder Schreibbefehle noch Optionseinträge aus. Wer einen bestehenden Lesesensor bearbeitet, behält dessen ID; andere Lesesensoren bleiben unverändert.
+- Bestehende Modbus-Verbindungen und Lesetreiber werden wiederverwendet. Das Testen ist ausschließlich lesend über Home Assistants temporäre Modbus-Verbindung.
+- Neu strukturierte Menüs und Assistenten DE/EN übersetzt; zusätzliche Regressionstests für Test-Fehler, Korrektur/Retest, Speichersperre, stabilen Sensor-ID-Erhalt.
+- Unverändert: Regler v0.3.0b1, ein sequentieller 15-Sekunden-Zyklus, Modbus-Lesen und -Schreiben während des Betriebs, Verbraucherzuordnungen, native Ampere-Stufen.
+
+**Grenzen:** Das Anzeigen eines plausiblen Registerwerts ist kein Nachweis der richtigen physikalischen Bedeutung. Modbus-Schreibtests bleiben aus Sicherheitsgründen außerhalb dieses Assistenten; native MQTT-/OCPP-Datenpunkteditoren sind noch nicht enthalten. HA-Frontend-Usabilitytests sind nach Installation erforderlich.
+
 ## 0.3.0b1 — Ein Regeldurchgang statt konkurrierender Timer
 
 - Vereinfachung des Managers auf exakt einen sequentiellen Zyklus: Messwerte lesen, Leistungsbilanz bilden, alle Verbraucher nach Priorität in gerätespezifischen Schritten verteilen, notwendige Sollwerte schreiben (Reduzierungen zuerst), danach 15 Sekunden warten. Läuft ein Schreibvorgang länger, startet die Wartezeit erst nach Abschluss.

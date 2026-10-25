@@ -19,11 +19,12 @@
       "init": {
         "title": "Energiemanager verwalten",
         "menu_options": {
-          "quick_system_sources": "1. Anlage einrichten",
-          "quick_consumer_choose": "2. Verbraucher einrichten",
-          "quick_diagnostics": "3. Einstellungen prüfen",
-          "advanced": "Erweiterte Einstellungen",
-          "quick_modbus_setup": "Modbus-Datenquelle hinzufügen"
+          "quick_system_sources": "Anlage einrichten und bearbeiten",
+          "quick_consumer_choose": "Verbraucher einrichten und bearbeiten",
+          "quick_data_points": "Datenpunkte – Sensoren und Aktoren",
+          "quick_connections": "Verbindungen – Modbus TCP",
+          "quick_diagnostics": "Diagnose und Einstellungen prüfen",
+          "advanced": "Erweiterte Einstellungen"
         }
       },
       "general": {
@@ -230,20 +231,12 @@
       "advanced": {
         "title": "Erweiterte Einstellungen",
         "menu_options": {
-          "general": "Allgemeine Einstellungen",
-          "add": "Verbraucher hinzufügen",
-          "edit": "Verbraucher bearbeiten",
-          "remove": "Verbraucher entfernen",
-          "modbus_connection": "Modbus-TCP-Gerät hinzufügen",
-          "modbus_edit_connection": "Modbus-Gerät bearbeiten",
-          "modbus_register": "Modbus-Lesesensor hinzufügen",
-          "modbus_edit_register": "Modbus-Sensor bearbeiten",
-          "modbus_test_register": "Modbus-Register testweise lesen",
-          "modbus_remove_register": "Modbus-Sensor entfernen",
-          "modbus_remove_connection": "Modbus-Gerät entfernen",
-          "modbus_write": "Modbus-Schreibaktor hinzufügen",
-          "modbus_edit_write": "Modbus-Schreibaktor bearbeiten",
-          "modbus_remove_write": "Modbus-Schreibaktor entfernen"
+          "general": "Regelparameter und allgemeine Einstellungen",
+          "advanced_consumers": "Verbraucher – Expertenverwaltung",
+          "quick_connections": "Verbindungen verwalten",
+          "quick_data_points": "Datenpunkte verwalten",
+          "modbus_test_register": "Gespeichertes Modbus-Register lesen",
+          "modbus_remove_register": "Modbus-Lesesensor entfernen"
         }
       },
       "quick_system_sources": {
@@ -342,13 +335,67 @@
         "description": "Netzleistungssensor: {sensor}. **Aktuell: {grid}**. Regelstatus: {status}; letzter Fehler: {error}. **Verbraucher:** {devices}. Es werden keine Befehle an Geräte gesendet."
       },
       "quick_modbus_setup": {
-        "title": "Modbus-Netzsensor anlegen",
-        "description": "Zuerst das Modbus-TCP-Gerät hinzufügen, dann den Lesesensor mit seinen Registerdaten anlegen. Anschließend unter „Anlage einrichten“ als Netzleistung auswählen. Bereits vorhandene Modbus-Geräte können wiederverwendet werden.",
+        "title": "Modbus-Einrichtung",
+        "description": "Zuerst Verbindung anlegen, danach Lesesensor einrichten und im gleichen Formular wiederholt testen.",
         "menu_options": {
-          "modbus_connection": "1. Modbus-TCP-Gerät hinzufügen",
-          "modbus_register": "2. Modbus-Lesesensor hinzufügen",
-          "modbus_test_register": "3. Register testweise lesen",
-          "quick_system_sources": "4. Sensor der Anlage zuordnen"
+          "quick_connections": "1. Modbus-Verbindungen",
+          "quick_read_point_choose": "2. Modbus-Lesesensor anlegen/testen",
+          "quick_system_sources": "3. Sensor der Anlage zuordnen"
+        }
+      },
+      "advanced_consumers": {
+        "title": "Verbraucher – Expertenfunktionen",
+        "menu_options": {
+          "add": "Verbraucher hinzufügen (Expertenmodus)",
+          "edit": "Verbraucher bearbeiten (Expertenmodus)",
+          "remove": "Verbraucher entfernen"
+        }
+      },
+      "quick_data_points": {
+        "title": "Datenpunkte verwalten",
+        "description": "Modbus-Lesesensoren direkt anlegen, testen und bearbeiten. Schreibaktoren werden getrennt eingerichtet; Tests senden keine Schreibbefehle. Bereits vorhandene Home-Assistant-Entitäten können unter Anlage oder Verbraucher zugeordnet werden.",
+        "menu_options": {
+          "quick_read_point_choose": "Modbus-Lesesensor anlegen oder bearbeiten",
+          "modbus_write": "Modbus-Schreibaktor anlegen",
+          "modbus_edit_write": "Modbus-Schreibaktor bearbeiten",
+          "modbus_remove_write": "Modbus-Schreibaktor entfernen"
+        }
+      },
+      "quick_connections": {
+        "title": "Modbus-TCP-Verbindungen verwalten",
+        "description": "Eine Verbindung kann von mehreren Sensoren und Aktoren genutzt werden. Verbindung und Sensor sind unterschiedliche Objekte.",
+        "menu_options": {
+          "modbus_connection": "Modbus-TCP-Verbindung hinzufügen",
+          "modbus_edit_connection": "Verbindung bearbeiten",
+          "modbus_remove_connection": "Verbindung entfernen"
+        }
+      },
+      "quick_read_point_choose": {
+        "title": "Modbus-Lesesensor auswählen",
+        "description": "Neuen Sensor anlegen oder vorhandenen direkt korrigieren. Ein bestehender Sensor behält beim Bearbeiten seine Kennung.",
+        "data": {
+          "register_id": "Neuen oder bestehenden Sensor auswählen"
+        },
+        "menu_options": {
+          "modbus_connection": "Zuerst Modbus-Verbindung hinzufügen",
+          "quick_connections": "Verbindungen verwalten"
+        }
+      },
+      "quick_read_point_form": {
+        "title": "Modbus-Lesesensor – einrichten und testen",
+        "description": "**Aktuelles Testergebnis:** {result}\n\nDu kannst alle technischen Angaben ändern und erneut testen. Ein erfolgreicher Lesetest ist vor dem endgültigen Speichern erforderlich. Ein erfolgreicher Test bestätigt den Registerzugriff, aber nicht automatisch die physikalische Bedeutung des Werts. Beim Test wird **nichts gespeichert oder geschrieben**.",
+        "data": {
+          "connection_id": "Modbus-Gerät",
+          "name": "Sensorname",
+          "address": "Registeradresse (0-basiert)",
+          "function_code": "Lesefunktion (FC03/FC04)",
+          "data_type": "Registerdatentyp",
+          "byte_order": "Byte-/Wortreihenfolge (32 Bit)",
+          "scale": "Skalierung (Wert = Rohwert × Faktor + Offset)",
+          "offset": "Offset",
+          "unit": "Physikalische Einheit, z. B. W",
+          "poll_seconds": "Abfrageintervall in Sekunden",
+          "wizard_action": "Aktion nach dem Ausfüllen"
         }
       }
     },
@@ -370,7 +417,9 @@
       "unavailable_actuator": "Gewählter Aktor ist nicht erreichbar oder nicht schreibbereit.",
       "actuator_unit_mismatch": "Einheit des Sollwertaktors stimmt nicht mit der ausgewählten Einheit überein.",
       "actuator_limits_mismatch": "Min./Max.-Leistung passt nicht zum Wertebereich des gewählten Aktors.",
-      "actuator_step_mismatch": "Mindestleistung liegt zwischen möglichen Stellstufen. Mindestleistung anpassen."
+      "actuator_step_mismatch": "Mindestleistung liegt zwischen möglichen Stellstufen. Mindestleistung anpassen.",
+      "read_test_required": "Bitte die aktuellen Daten zuerst erfolgreich testen. Danach kannst du speichern.",
+      "read_test_failed": "Verbindung oder Registertest fehlgeschlagen. Ergebnis unten prüfen und Einstellungen korrigieren."
     },
     "abort": {
       "no_devices": "Keine Verbraucher eingerichtet.",
