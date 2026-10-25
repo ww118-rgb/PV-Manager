@@ -41,3 +41,9 @@ Für die erste Erprobung ausschließlich den Simulator verwenden. Kein blindes R
 ## Geprüftes / nicht Geprüftes
 
 Automatische lokale Pure-Python-Regressionstests und GitHub-HACS-/Hassfest-Checks; kein tatsächlicher Home-Assistant-UI-Laufzeittest in unserer Umgebung. Die praktische Bestätigung erfolgt nach HACS-Update beim Nutzer.
+
+## Stellstufen und Rücknavigation (0.2.2b3)
+
+Im Verbraucherassistenten über das Feld „Navigation“ zum vorherigen Formular zurückkehren und Eingaben bearbeiten. Auf der letzten Zusammenfassung führt „Was möchtest du tun?“ unmittelbar zu den Leistungsgrenzen, den Aktoren oder den Rückmeldungen. Wähle alternativ „Mindestleistung automatisch anpassen“, wenn eine Wattvorgabe nicht zu den möglichen A-Stufen passt. Anschließend den korrigierten Wert prüfen und ausdrücklich speichern.
+
+Beispiel: Drei Phasen zu 230 V, 1-A-Stufen, minimale aktive Wallboxvorgabe 6 A → 4140 W. Die 0-A-Stellung der HA-Nummer repräsentiert die separat konfigurierte Ladepause; sie ist **keine gültige aktive Ladestufe**.

@@ -176,6 +176,41 @@ class WizardFlowTests(unittest.TestCase):
         self.assertEqual(value['min_on_s'],90)
         self.assertEqual(value['actual_entity'],'sensor.real_power')
 
+    def test_review_can_adopt_suggested_minimum_and_save(self):
+        flow = self.flow()
+        self.do_step(flow.async_step_quick_consumer_choose, {'consumer':'new'})
+        self.do_step(flow.async_step_quick_consumer_basics, {
+            'name':'WB1','kind':'continuous','priority':2,'subpriority':1,
+            'min_w':4000,'max_w':11000})
+        self.do_step(flow.async_step_quick_consumer_output, {
+            'power_output':'number.wallbox','output_unit':'A'})
+        self.do_step(flow.async_step_quick_consumer_conversion, {'phases':'3','voltage':230})
+        self.do_step(flow.async_step_quick_consumer_feedback, {'actual_entity':'sensor.real_power'})
+        before = self.do_step(flow.async_step_quick_consumer_review)
+        self.assertIn('4140',before['description_placeholders']['range_hint'])
+        corrected = self.do_step(flow.async_step_quick_consumer_review, {'review_action':'fix_minimum'})
+        self.assertEqual(corrected['type'],'form')
+        self.assertEqual(flow._quick_basics['min_w'],4140)
+        saved = self.do_step(flow.async_step_quick_consumer_review, {'confirm':True})
+        self.assertEqual(saved['type'],'create_entry')
+        self.assertEqual(saved['data']['devices'][0]['min_w'],4140)
+
+    def test_summary_back_to_limits_without_losing_output(self):
+        flow = self.flow()
+        self.do_step(flow.async_step_quick_consumer_choose, {'consumer':'new'})
+        self.do_step(flow.async_step_quick_consumer_basics, {
+            'name':'WB1','kind':'continuous','priority':2,'subpriority':1,
+            'min_w':4000,'max_w':11000})
+        self.do_step(flow.async_step_quick_consumer_output, {
+            'power_output':'number.wallbox','output_unit':'A'})
+        self.do_step(flow.async_step_quick_consumer_conversion, {'phases':'3','voltage':230})
+        self.do_step(flow.async_step_quick_consumer_feedback, {'actual_entity':'sensor.real_power'})
+        back = self.do_step(flow.async_step_quick_consumer_review, {'review_action':'edit_limits'})
+        self.assertEqual(back['step_id'], 'quick_consumer_basics')
+        self.assertEqual(flow._quick_basics['min_w'],4000)
+        self.assertEqual(flow._quick_output['power_output'],'number.wallbox')
+        self.assertEqual(flow._quick_feedback['actual_entity'],'sensor.real_power')
+
     def test_wrong_unit_blocks_save(self):
         flow = self.flow()
         self.do_step(flow.async_step_quick_consumer_choose, {'consumer':'new'})

@@ -82,6 +82,47 @@ def signed_grid_preview(value_w: float | None, export_positive: bool) -> str:
     return f"Netzbezug: {abs(balance):,.0f} W".replace(",", ".")
 
 
+def suggested_minimum_power(cfg: dict, state) -> int | None:
+    """Find the first possible *active* power at/above requested minimum.
+
+    Align to discrete device steps without silently changing configuration.
+    The installer must explicitly request adopting the suggestion.
+    A native write-only Modbus number exposes active_min separately from
+    HA min=0 (semantic STOP). Never suggest below a device's active_min.
+    """
+    if state is None or getattr(state, "state", None) == "unavailable":
+        return None
+    if cfg.get("kind") == "onoff":
+        return None
+    try:
+        unit = cfg.get("output_unit", "W")
+        factor = (1.0 if unit == "W" else (1000.0 if unit == "kW" else
+                  float(cfg["voltage"]) * int(cfg["phases"]) if unit == "A" else 0.0))
+        attrs = state.attributes
+        step = float(attrs.get("step", 0.01))
+        if factor <= 0 or step <= 0 or not math.isfinite(factor * step):
+            return None
+        active_min = float(attrs.get("active_min", attrs.get("min", 0)))
+        active_max = float(attrs.get("active_max", attrs.get("max", float("inf"))))
+        request = max(float(cfg["min_w"]) / factor, active_min, 0)
+        if not math.isfinite(request) or request <= 0:
+            return None
+        # Native HA step values are aligned to active_min for our own Modbus
+        # write entities; other number entities use the exposed min bound.
+        # Our writer validates steps relative to active_min.
+        offset = active_min if attrs.get("active_min") is not None else float(attrs.get("min", 0))
+        steps = max(0, math.ceil((request - offset) / step - 1e-8))
+        adjusted = offset + steps * step
+        if adjusted > active_max + 1e-7:
+            return None
+        power = int(math.ceil(adjusted * factor - 1e-7))
+        if power > int(cfg["max_w"]):
+            return None
+        return power
+    except (KeyError, ValueError, TypeError, OverflowError):
+        return None
+
+
 def actuator_compatibility_error(cfg: dict, state) -> str | None:
     """Reject provably unsafe/wrong entity bindings before saving a consumer.
 
@@ -113,23 +154,23 @@ def actuator_compatibility_error(cfg: dict, state) -> str | None:
                     else float(cfg["voltage"]) * int(cfg["phases"]))
         if factor <= 0:
             return "actuator_limits_mismatch"
-        maximum = state.attributes.get("max")
-        minimum = state.attributes.get("min")
+        minimum = state.attributes.get("active_min", state.attributes.get("min"))
+        maximum = state.attributes.get("active_max", state.attributes.get("max"))
         step = float(state.attributes.get("step", 0.01))
         lo = float(cfg["min_w"]) / factor
         hi = float(cfg["max_w"]) / factor
         if step <= 0:
             return "actuator_limits_mismatch"
+        if maximum is not None and hi > float(maximum) + 1e-6:
+            return "actuator_limits_mismatch"
+        adjusted = suggested_minimum_power(cfg, state)
+        if adjusted is None:
+            return "actuator_limits_mismatch"
+        if adjusted > float(cfg["min_w"]) + 10:
+            return "actuator_step_mismatch"
+        # Distinguish active minimum from the zero-as-pause HA number bound.
         if minimum is not None and lo < float(minimum) - 1e-7:
-            return "actuator_limits_mismatch"
-        if maximum is not None and hi > float(maximum) + 1e-7:
-            return "actuator_limits_mismatch"
-        # A controller rounds *down* to avoid consuming more than budgeted.
-        # If that makes the minimum impossible, changing just the minimum is required.
-        if lo > 0:
-            rounded = math.floor((lo + 1e-8) / step) * step
-            if rounded * factor < float(cfg["min_w"]) - 10:
-                return "actuator_step_mismatch"
+            return "actuator_step_mismatch"
     except (KeyError, ValueError, TypeError, OverflowError):
         return "actuator_limits_mismatch"
     return None

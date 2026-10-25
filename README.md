@@ -1,8 +1,8 @@
 ## Wichtig: Modbus zuerst einrichten, ohne vorhandene Sensoren
 
-Ab 0.2.2b2 kann die Integration **ohne Netzsensor** angelegt werden. Der erste Einrichtungsdialog hat nur einen optionalen bereits vorhandenen Netzsensor. Nach Installation unter **Konfigurieren → Modbus-Datenquelle hinzufügen** die Geräteverbindung und den Netz-Lesesensor erstellen. Erst danach unter **Anlage einrichten** als Netzsensor zuordnen. Ohne gültige Netzleistung ist die Regelungsfreigabe gesperrt. Siehe [Einrichtungsassistent](EINRICHTUNGSASSISTENT.md).
+Ab 0.2.2b3 kann die Integration **ohne Netzsensor** angelegt werden. Der erste Einrichtungsdialog hat nur einen optionalen bereits vorhandenen Netzsensor. Nach Installation unter **Konfigurieren → Modbus-Datenquelle hinzufügen** die Geräteverbindung und den Netz-Lesesensor erstellen. Erst danach unter **Anlage einrichten** als Netzsensor zuordnen. Ohne gültige Netzleistung ist die Regelungsfreigabe gesperrt. Siehe [Einrichtungsassistent](EINRICHTUNGSASSISTENT.md).
 
-# PV Energiemanager – geführte Einrichtung (0.2.2b2)
+# PV Energiemanager – geführte Einrichtung (0.2.2b3)
 
 Der Bereich **Konfigurieren** zeigt jetzt zuerst vier klar erkennbare Optionen:
 
@@ -35,7 +35,7 @@ Off und laufender Sollwert werden in diesem ersten Adapter **auf dasselbe Schrei
 
 ---
 
-# PV-Manager für Home Assistant – 0.2.2b2 (geführte Einrichtung)
+# PV-Manager für Home Assistant – 0.2.2b3 (geführte Einrichtung)
 
 **Aktueller Stand:** Die bestehende PV-Überschussregelung bleibt erhalten.
 Neu: Modbus-TCP-Verbindungen und frei definierbare **Lesesensoren** werden
@@ -186,3 +186,9 @@ Der PV-Manager zeigt Netz-, Batterie- und PV-Leistungen nun auch bei ausgeschalt
 ### Verhalten schreibbarer Modbus-Sollwerte ab 0.2.1a2
 
 Ein neu gestarteter nativer Modbus-Schreibaktor hat ohne Rücklesung den Zustand `unknown`, bis der erste Befehl erfolgreich übertragen wurde. Dies verhindert bewusst, einen unbestätigten Gerätezustand vorzutäuschen. Die EMS-Regelung darf den **ersten** Befehl dennoch an einen eindeutig zugehörigen, korrekt konfigurierten und verfügbaren PV-Manager-Schreibaktor senden. Andere unbekannte oder nicht verfügbare HA-Aktoren bleiben gesperrt. **Für echte Geräte** muss die Aus-/Pause-Semantik ausdrücklich geprüft sein und die Inbetriebnahme beaufsichtigt erfolgen. Ein anfänglich unbekannter Geräte-Istverbrauch darf nicht als physikalisch 0 W interpretiert werden.
+
+### Zurück im geführten Verbraucher-Assistenten (ab 0.2.2b3)
+
+Home Assistant besitzt für OptionsFlow-Formulare keinen nativen Zurück-Button. In jedem Schritt befindet sich nun eine Auswahlliste „Navigation“ mit Weiter bzw. Zurück. Auf der letzten Seite kann man direkt Leistungsgrenzen, Stellwert oder Rückmeldungen bearbeiten, ohne alle Schritte von vorne zu beginnen.
+
+Bei stufenweiser Geräteansteuerung in Ampere schlägt der Assistent den nächsten tatsächlich erreichbaren Mindestwert vor. Beispiel: Drei Phasen, 230 V, 1-A-Schritte, mindestens 6 A → 4140 W. Der Nutzer kann den Vorschlag gezielt übernehmen; es wird weder unbemerkt gerundet noch ein Register angesprochen.

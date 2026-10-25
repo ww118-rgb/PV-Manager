@@ -74,6 +74,8 @@ class PVModbusWriteNumber(NumberEntity):
             "last_register_words": self._last_words,
             "feedback_status": "last_sent_not_read_back" if self._last_sent else "unknown_after_start",
             "off_value_configured": True,
+            "active_min": float(self.cfg["active_min"]),
+            "active_max": float(self.cfg["active_max"]),
             "register_address_zero_based": self.cfg["address"],
         }
 

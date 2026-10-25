@@ -1,3 +1,12 @@
+## 0.2.2b3 — Verbraucher-Assistent: Zurück und Stellstufen korrigieren
+
+- In den Formularen des Verbraucher-Assistenten Navigation über Dropdown „Weiter / Zurück“ (HA bietet keinen nativen Zurück-Button für Formulare).
+- Auf der Zusammenfassung direkt zu Leistungsgrenzen, Sollwertaktor oder Istwerten zurückspringen – Eingaben bleiben erhalten.
+- Mindestleistung automatisch auf die nächste darstellbare aktive Stellstufe anheben, nur auf ausdrückliche Auswahl.
+- Aktive Geräte-Mindestleistung des Modbus-Nummeraktors getrennt vom 0-Pause-Befehl prüfen.
+- Präzise Wattvorschläge und Priorität ohne überflüssige Nachkommastellen in der Zusammenfassung.
+- Bestehende Verbraucher, Entity-IDs, Regeln und Registerkonfigurationen unverändert.
+
 ## 0.2.2b2 — Erstinstallation ohne Netzsensor möglich
 
 - Erste HA-Einrichtung lässt das Anlegen des Hubs ohne vorhandene Sensoren zu. Netzsensor ist beim ersten Schritt optional.

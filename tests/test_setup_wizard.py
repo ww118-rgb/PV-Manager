@@ -79,6 +79,20 @@ class CompatibilityTests(unittest.TestCase):
     def test_good_wallbox(self):
         self.assertIsNone(setup.actuator_compatibility_error(self.config(),self.state()))
 
+    def test_suggest_minimum_for_3phase_wallbox(self):
+        c = self.config(min_w=4000,max_w=11000)
+        self.assertEqual(setup.suggested_minimum_power(c,self.state()),4140)
+        self.assertEqual('actuator_step_mismatch',setup.actuator_compatibility_error(c,self.state()))
+
+    def test_device_active_minimum_is_not_same_as_semantic_pause(self):
+        c = self.config(min_w=1400,max_w=11040)
+        st = self.state(status='unknown')
+        st.attributes.update(active_min=6, active_max=16,
+            feedback_status='unknown_after_start',
+            off_value_configured=True, last_write_error=None)
+        self.assertEqual(setup.suggested_minimum_power(c,st),4140)
+        self.assertEqual('actuator_step_mismatch',setup.actuator_compatibility_error(c,st))
+
     def test_catches_wrong_units(self):
         self.assertEqual('actuator_unit_mismatch',setup.actuator_compatibility_error(
             self.config(output_unit='W'), self.state()))

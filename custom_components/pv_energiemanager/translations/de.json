@@ -287,14 +287,16 @@
           "priority": "Hauptpriorität (1 zuerst)",
           "subpriority": "Unterpriorität",
           "min_w": "Mindestleistung im Betrieb (W)",
-          "max_w": "Maximalleistung (W)"
+          "max_w": "Maximalleistung (W)",
+          "wizard_navigation": "Navigation (Weiter oder Zurück)"
         },
         "description": "Beispiel Wallbox: 6 A × 230 V × 3 Phasen = 4.140 W Mindestleistung. Heizstab oder Wärmepumpe können völlig andere Grenzen besitzen."
       },
       "quick_consumer_steps": {
         "title": "Verbraucher – zulässige Leistungsstufen",
         "data": {
-          "steps_w": "Stufen in W, mit Kommas getrennt"
+          "steps_w": "Stufen in W, mit Kommas getrennt",
+          "wizard_navigation": "Navigation (Weiter oder Zurück)"
         },
         "description": "Beispiel 500,1000,1500,2000. Die Stufen dürfen den Maximalwert nicht überschreiten."
       },
@@ -303,7 +305,8 @@
         "data": {
           "power_output": "Sollwert-Entität auswählen (z. B. Modbus-Schreibaktor)",
           "switch_output": "Ein-/Aus-Schalter (optional, außer bei Ein/Aus)",
-          "output_unit": "Einheit des Aktors"
+          "output_unit": "Einheit des Aktors",
+          "wizard_navigation": "Navigation (Weiter oder Zurück)"
         },
         "description": "Hier erscheinen Modbus-Schreibaktoren genauso wie andere HA-Entitäten. Muss zuerst ein neuer Modbus-Schreibaktor angelegt werden: unter „Erweiterte Einstellungen → Modbus-Schreibaktor hinzufügen“. Wähle die tatsächliche Geräte-Einheit."
       },
@@ -311,7 +314,8 @@
         "title": "Verbraucher – Umrechnung Watt nach Ampere",
         "data": {
           "phases": "Anzahl Phasen",
-          "voltage": "Spannung pro Phase (V)"
+          "voltage": "Spannung pro Phase (V)",
+          "wizard_navigation": "Navigation (Weiter oder Zurück)"
         },
         "description": "Der Energiemanager berechnet immer Watt. Bei Ampere-Aktoren wandelt er anhand dieser Werte W → A um und rundet auf die Stufen des Aktors ab."
       },
@@ -319,16 +323,18 @@
         "title": "Verbraucher – Istwerte und Bedarf (3/4)",
         "data": {
           "actual_entity": "Istleistung (W/kW, empfohlen)",
-          "demand_entity": "Anforderung / Ladebedarf (Ein/Aus, optional)"
+          "demand_entity": "Anforderung / Ladebedarf (Ein/Aus, optional)",
+          "wizard_navigation": "Navigation (Weiter oder Zurück)"
         },
         "description": "Ohne Istleistungssensor zeigt der Manager „Unbekannt“, nicht 0 W. Ohne Anforderungssensor wird „Ja“ angenommen, auch wenn das Gerät gerade nicht laden möchte."
       },
       "quick_consumer_review": {
         "title": "Verbraucher – Zusammenfassung (4/4)",
         "data": {
-          "confirm": "Zuordnungen geprüft – Verbraucher speichern"
+          "confirm": "Zuordnungen geprüft – Verbraucher speichern",
+          "review_action": "Was möchtest du tun?"
         },
-        "description": "**{name}**, Priorität {priority}, {range}. Sollwertaktor: {actor}; Ausgabe: {scale}. Istleistung: {actual}; Anforderung: {demand}. **Prüfhinweise:** {warnings}. Für die Inbetriebnahme erst sichere Pause/Abschaltwerte und echte Istwerte prüfen."
+        "description": "**{name}**, Priorität {priority}, {range}. Sollwertaktor: {actor}; Ausgabe: {scale}. Istleistung: {actual}; Anforderung: {demand}. **Prüfhinweise:** {warnings}. Für die Inbetriebnahme erst sichere Pause/Abschaltwerte und echte Istwerte prüfen. **Hilfe zu den Stellstufen:** {range_hint}"
       },
       "quick_diagnostics": {
         "title": "Einrichtungsprüfung – ohne Steuerbefehle",

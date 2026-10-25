@@ -287,14 +287,16 @@
           "priority": "Main priority (1 first)",
           "subpriority": "Subpriority",
           "min_w": "Minimum operating power (W)",
-          "max_w": "Maximum power (W)"
+          "max_w": "Maximum power (W)",
+          "wizard_navigation": "Navigation (Next / Back)"
         },
         "description": "A three-phase 6 A charger at 230 V requires approximately 4,140 W minimum. Different devices have different limits."
       },
       "quick_consumer_steps": {
         "title": "Consumer – permitted power steps",
         "data": {
-          "steps_w": "Power steps in W, comma-separated"
+          "steps_w": "Power steps in W, comma-separated",
+          "wizard_navigation": "Navigation (Next / Back)"
         },
         "description": "Example 500,1000,1500,2000."
       },
@@ -303,7 +305,8 @@
         "data": {
           "power_output": "Setpoint entity (including Modbus number)",
           "switch_output": "On/off switch (optional, required for on/off)",
-          "output_unit": "Actuator unit"
+          "output_unit": "Actuator unit",
+          "wizard_navigation": "Navigation (Next / Back)"
         },
         "description": "Choose an existing HA entity, including a native Modbus write number. Add a new Modbus write point under Advanced settings first if needed."
       },
@@ -311,7 +314,8 @@
         "title": "Consumer – convert W to A",
         "data": {
           "phases": "Phases",
-          "voltage": "Voltage per phase (V)"
+          "voltage": "Voltage per phase (V)",
+          "wizard_navigation": "Navigation (Next / Back)"
         },
         "description": "All internal budgets remain in W; outputs in A are rounded down to configured actuator steps."
       },
@@ -319,16 +323,18 @@
         "title": "Consumer – feedback and demand (3/4)",
         "data": {
           "actual_entity": "Measured power (W/kW, recommended)",
-          "demand_entity": "Demand / load requested (optional)"
+          "demand_entity": "Demand / load requested (optional)",
+          "wizard_navigation": "Navigation (Next / Back)"
         },
         "description": "Without a measured power sensor actual load is unknown. Without a demand switch, demand is always yes."
       },
       "quick_consumer_review": {
         "title": "Consumer – review (4/4)",
         "data": {
-          "confirm": "I reviewed the mappings – save"
+          "confirm": "I reviewed the mappings – save",
+          "review_action": "What would you like to do?"
         },
-        "description": "**{name}**, priority {priority}, {range}. Actuator: {actor}, unit: {scale}. Measured power: {actual}. Demand: {demand}. **Warnings:** {warnings}. Check safe stop semantics and actual measurements before activation."
+        "description": "**{name}**, priority {priority}, {range}. Actuator: {actor}, unit: {scale}. Measured power: {actual}. Demand: {demand}. **Warnings:** {warnings}. Check safe stop semantics and actual measurements before activation. **Step-size guidance:** {range_hint}"
       },
       "quick_diagnostics": {
         "title": "Setup diagnostics – no writes",
