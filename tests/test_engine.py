@@ -44,3 +44,38 @@ class DistributionTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class NativeStepAwareAllocationTests(unittest.TestCase):
+    def test_two_wallboxes_stepwise_just_under_8_amp_budget(self):
+        wallboxes = [Consumer(id=f"wb{i}", priority=2, subpriority=i,
+                             kind="continuous", minimum=4140, maximum=11040,
+                             step_w=690) for i in (1, 2)]
+        hp = Consumer(id="hp", priority=1, subpriority=1,
+                      kind="continuous", minimum=5000, maximum=20000, step_w=1)
+        result = distribute(31000, [hp, *wallboxes])
+        self.assertEqual(result.targets["hp"], 20000)
+        self.assertEqual(result.targets["wb1"], 5520)
+        self.assertEqual(result.targets["wb2"], 4830)
+        self.assertEqual(sum(result.targets.values()), 30350)
+
+    def test_two_wallboxes_stable_above_8_amp_threshold(self):
+        wb = [Consumer(id=f"wb{i}", priority=1, subpriority=i,
+                       kind="continuous", minimum=4140, maximum=11040,
+                       step_w=690) for i in (1, 2)]
+        for budget in (11190, 11210):
+            result = distribute(budget, wb)
+            self.assertEqual(result.targets, {"wb1": 5520, "wb2": 5520})
+
+    def test_unreachable_max_does_not_block_lower_priority(self):
+        wb = Consumer(id="wb", priority=1, subpriority=1,
+                      kind="continuous", minimum=4140, maximum=11000, step_w=690)
+        lower = Consumer(id="lower", priority=2, subpriority=1,
+                         kind="continuous", minimum=100, maximum=2000)
+        result = distribute(11100, [wb, lower])
+        self.assertEqual(result.targets["wb"], 10350)
+        self.assertEqual(result.targets["lower"], 700)
+
+    def test_legacy_continuous_still_uses_100_w_quantum(self):
+        old = Consumer(id="x", priority=1, subpriority=1,
+                       kind="continuous", minimum=100, maximum=1000)
+        self.assertEqual(distribute(700, [old]).targets["x"], 700)

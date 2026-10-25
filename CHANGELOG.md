@@ -1,3 +1,12 @@
+## 0.2.2b6 — Geräte-Stellstufen bereits bei der Leistungsaufteilung berücksichtigen
+
+- Für stufenlos konfigurierte Verbraucher mit tatsächlich diskreten Stellgrößen (z. B. 1 A) liest die Regelung die Home-Assistant-Schrittweite aus dem vorhandenen Sollwertaktor und bildet daraus echte Leistungsstufen.
+- Der Verteilungsalgorithmus plant keine unerreichbaren Zwischenleistungen mehr, die später beide Wallboxen gemeinsam abrunden würden. Beispiel: Bei 11.000 W Gruppenbudget kann 8 A + 7 A statt 7 A + 7 A zugeordnet werden.
+- Für Gerätenummern ohne sinnvoll auf ganze Watt abbildbare Schrittweite bleibt die bisherige feinere kontinuierliche Berechnung erhalten; keine gerätespezifischen festen Werte.
+- Die tatsächlich erreichbare Maximalleistung eines Geräts wird für nachfolgende Prioritätsgruppen berücksichtigt.
+- Regressionstest für eine bei automatischer Batterieladung stabil auf 8 A regelbare Situation ergänzt.
+- Keine Veränderung an Vorzeichenkonvention, Modbus-Registern oder Benutzerkonfiguration. Bei zeitlich versetzten Eingangsmessungen kann weiterhin eine Hysterese nötig sein.
+
 ## 0.2.2b5 — Anzeige nach Ampere-Rundung korrigiert
 
 - Zugewiesene Leistung zeigt nun die Summe der tatsächlich als Gerätesollwerte übertragenen, quantisierten Leistungen, statt der theoretisch geplanten Wattwerte.

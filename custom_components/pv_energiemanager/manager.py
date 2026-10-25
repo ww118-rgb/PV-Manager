@@ -219,6 +219,20 @@ class PowerManager:
             steps = ()
             if d["kind"] == "stepped":
                 steps = tuple(int(x.strip()) for x in d["steps_w"].split(",") if x.strip())
+            step_w = 0
+            if d["kind"] == "continuous" and d.get("power_output"):
+                output = self.hass.states.get(d["power_output"])
+                if output is not None:
+                    try:
+                        device_step_w = (float(output.attributes.get("step", 0))
+                                         * self._conversion_factor(d))
+                        # This allocator works in integer watts. Non-integral
+                        # W steps retain the existing compatibility path.
+                        if (math.isfinite(device_step_w) and device_step_w >= 1
+                                and abs(device_step_w - round(device_step_w)) < 1e-6):
+                            step_w = int(round(device_step_w))
+                    except (TypeError, ValueError, OverflowError):
+                        pass
             result.append(Consumer(
                 id=key,
                 priority=int(d["priority"]),
@@ -227,6 +241,7 @@ class PowerManager:
                 minimum=int(d["min_w"]),
                 maximum=int(d["max_w"]),
                 steps=steps,
+                step_w=step_w,
                 requested=demand,
                 allowed_to_start=(off_timer_ok and start_ready),
                 locked_on=locked,

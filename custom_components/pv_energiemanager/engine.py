@@ -19,6 +19,14 @@ class Consumer:
     old_target: int = 0
     actual: float | None = None
     feedback_settled: bool = False
+    # Native actuator granularity in whole watts; 0 means legacy continuous.
+    step_w: int = 0
+
+    @property
+    def reachable_maximum(self) -> int:
+        if self.kind != "continuous" or self.step_w <= 0:
+            return self.maximum
+        return self.minimum + max(0, (self.maximum - self.minimum) // self.step_w) * self.step_w
 
     @property
     def levels(self) -> tuple[int, ...]:
@@ -44,9 +52,15 @@ def _min_on(device: Consumer) -> int:
 
 def _next_increase(device: Consumer, current: int, quantum: int) -> int | None:
     if device.kind == "continuous":
-        if current >= device.maximum:
+        available = device.reachable_maximum - current
+        if available <= 0:
             return None
-        return min(quantum, device.maximum - current)
+        if device.step_w > 0:
+            # Batch tiny native steps to roughly 100 W for runtime cost while
+            # keeping every allocated power level realizable at the actuator.
+            batch = max(device.step_w, (quantum // device.step_w) * device.step_w)
+            return min(batch, available)
+        return min(quantum, available)
     next_levels = [x for x in device.levels if x > current]
     return min(next_levels) - current if next_levels else None
 
@@ -119,7 +133,7 @@ def distribute(
         group = [d for d in devices if d.priority == group_id]
         if not group:
             continue
-        demand = sum(d.maximum for d in group if d.locked_on or
+        demand = sum(d.reachable_maximum for d in group if d.locked_on or
                      (d.requested and (d.allowed_to_start or d.old_target > 0)))
         if demand <= 0:
             records.append({"priority": group_id, "demand": 0, "setpoint": 0,
