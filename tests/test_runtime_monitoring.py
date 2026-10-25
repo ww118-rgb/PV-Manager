@@ -536,6 +536,79 @@ class RuntimeMonitoringTests(unittest.TestCase):
         self.assertIsNotNone(attrs['last_success'])
         self.assertIsNone(attrs['last_error'])
 
+    def test_fast_grid_import_protection_and_settling(self):
+        """8.29 kW import despite 2.94 kW battery charge must curtail."""
+        from datetime import datetime, timezone
+        class State:
+            def __init__(self,value,unit='W',step=1):
+                self.state=str(value)
+                self.attributes={'unit_of_measurement':unit,'min':0,
+                                 'max':20000,'step':step}
+                self.last_updated=datetime.now(timezone.utc)
+        class States:
+            def __init__(self):
+                self.data={'sensor.grid':State(-8290),'sensor.batt':State(-2940),
+                           'sensor.wb1':State(10350),'sensor.wb2':State(10350),
+                           'number.hp':State(20000),'number.wb1':State(15,'A'),
+                           'number.wb2':State(15,'A')}
+            def get(self,entity):return self.data.get(entity)
+        class Services:
+            def __init__(self,states):self.states=states;self.calls=[]
+            async def async_call(self,domain,service,data,blocking=False):
+                self.calls.append((data['entity_id'],data['value']))
+                self.states.data[data['entity_id']].state=str(data['value'])
+        states=States();services=Services(states)
+        devices=[{'id':'hp','name':'WP','priority':1,'subpriority':1,
+                  'kind':'continuous','min_w':5000,'max_w':20000,
+                  'power_output':'number.hp','output_unit':'W'}]
+        devices += [{'id':f'wb{i}','name':f'WB{i}','priority':2,
+                     'subpriority':i,'kind':'continuous','min_w':4140,
+                     'max_w':11040,'power_output':f'number.wb{i}',
+                     'actual_entity':f'sensor.wb{i}','output_unit':'A',
+                     'phases':3,'voltage':230} for i in (1,2)]
+        entry=types.SimpleNamespace(entry_id='test',options={'devices':devices},
+            data={'grid_entity':'sensor.grid','battery_entity':'sensor.batt',
+                  'grid_export_positive':True,'battery_charge_positive':False,
+                  'interval_s':15})
+        manager=self.manager_module.PowerManager(
+            types.SimpleNamespace(states=states,services=services),entry)
+        manager.enable(True)
+        asyncio.run(manager.async_safety_cycle())
+        self.assertEqual(manager.status,'Netzbezug-Schutz')
+        self.assertEqual(manager.values['safety_interventions'],1)
+        self.assertEqual(manager.values['safety_last_import'],8290)
+        self.assertEqual(manager.last_targets['hp'],20000)
+        self.assertLessEqual(sum(manager.last_targets.values()),32110)
+        self.assertEqual(len(services.calls),2)
+        self.assertTrue(all(name.startswith('number.wb') for name,_ in services.calls))
+        self.assertTrue(all(value < 15 for _,value in services.calls))
+        self.assertEqual(manager.values['safety_curtailment'],
+                         40700-sum(manager.last_targets.values()))
+        previous=dict(manager.last_targets)
+        # The normal 15s cycle must await the actual device/meter reaction.
+        asyncio.run(manager.async_cycle())
+        self.assertEqual(manager.values['budget'],32410)
+        self.assertEqual(manager.status,'Netzbezug-Schutz (Wirkung abwarten)')
+        self.assertTrue(all(manager.last_targets[k]<=previous[k] for k in previous))
+
+    def test_fast_grid_safety_does_not_write_while_paused(self):
+        class State:
+            state='-8200'
+            attributes={'unit_of_measurement':'W'}
+        class Services:
+            calls=0
+            async def async_call(self,*args,**kwargs):self.calls+=1
+        service=Services()
+        entry=types.SimpleNamespace(entry_id='test',
+            data={'grid_entity':'sensor.grid','interval_s':15},
+            options={'devices':[]})
+        manager=self.manager_module.PowerManager(
+            types.SimpleNamespace(states=types.SimpleNamespace(
+                get=lambda name:State()),services=service),entry)
+        asyncio.run(manager.async_safety_cycle())
+        self.assertEqual(service.calls,0)
+        self.assertEqual(manager.values['safety_interventions'],0)
+
     def test_modbus_failure_is_visible(self):
         class Unit:
             async def read_holding_registers(self, address, count):

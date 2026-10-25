@@ -1,3 +1,13 @@
+## 0.2.2b9 — Netzbezug-Schutz bei abrupten PV-Schwankungen
+
+- Zusätzliche Sicherheitsprüfung alle 5 Sekunden, unabhängig vom normalen 15-Sekunden-Gesamtregler. Ab 1.000 W gemessenem Netzbezug werden nur vorhandene steuerbare Lasten reduziert, niemals erhöht.
+- Bei erheblichem Netzbezug wird gleichzeitig ladende Batterie nicht als unmittelbar verfügbare Leistungsreserve angerechnet.
+- Der Sicherheitsregler gibt 300 W zusätzliche Reserve, respektiert Gruppenprioritäten und wartet nach einem Eingriff mindestens die konfigurierte Rückmeldezeit, normalerweise 15 s, auf dessen physikalische Wirkung. Ein um weitere 2 kW wachsender Netzbezug kann schneller erneut reduziert werden.
+- Während der Wirkungskontrolle werden die vorherigen Sollwerte als Referenz berücksichtigt, damit unveränderte physikalische Messungen keine mehrfache Reduzierung auslösen. Der normale Regler darf eine Notreduzierung für mindestens 30 s nicht durch Hochregeln konterkarieren.
+- Diagnose: Anzahl Netzbezug-Schutz-Eingriffe, Netzbezug beim letzten Eingriff, letzte reduzierte Sollleistung.
+- Kein fester herstellerspezifischer Modbus-Wert, keine Änderung der Nutzerkonfiguration oder Batterie-Vorzeichen; die vorhandene Anstiegsbegrenzung bleibt erhalten.
+- Beta-Schutzfunktion: Ein 5-Sekunden-Software-Regler ersetzt keine netzseitige Hardware-Schutzmaßnahme. Weiterhin nur im Simulator testen, bis die physikalische Wirkung geprüft wurde.
+
 ## 0.2.2b8 — Begrenztes Hochregeln bei schnell wechselnder PV-Leistung
 
 - Grobe Gerätestufen ab 300 W: pro normalem Regelzyklus maximal 2 aktive Stufen **nach oben**; Ein-/Aus-Schaltungen dürfen immer auf die konfigurierte Mindestleistung beginnen.

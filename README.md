@@ -1,3 +1,7 @@
+## Schneller Netzbezug-Schutz ab 0.2.2b9
+
+Die Gesamtberechnung bleibt alle 15 Sekunden. Zusätzlich prüft der Manager alle 5 Sekunden die Netzleistung auf erheblichen Bezug (initial mindestens 1000 W) und senkt gegebenenfalls die aktuell steuerbaren Verbraucher nach konfigurierter Priorität ab. Batterie-Laden wird bei großem Netzbezug nicht als unmittelbar frei angenommen. Nach einem Schutz-Eingriff gibt der Manager der echten Messung eine Wirkungsfrist und verhindert sofortiges erneutes Hochregeln. Drei neue Sensoren dokumentieren die Eingriffe. Das ist ein Software-Betaregler, kein Ersatz für hardwareseitige Schutzfunktionen.
+
 ## Testbetrieb mit schnell schwankender PV-Leistung (ab 0.2.2b8)
 
 Für Geräte mit groben Stellstufen (mindestens 300 W pro Stellstufe) ist die Hochregelung zunächst auf **zwei Stufen pro EMS-Regelzyklus** begrenzt. Reduzieren und Abschalten bleiben unmittelbar. Die Begrenzung wird als eigener Sensor „Wegen Anstiegsbegrenzung zurückgehalten“ sichtbar. Bei dreiphasigen 230-V-Wallboxen mit 1-A-Schritten entspricht dies höchstens +2 A je Zyklus. 16 A entsprechen 11.040 W: Sowohl die Verbraucher-Maximalleistung als auch die Number-Entitätsobergrenze müssen 16 A ermöglichen. Die 5-s-Sensorabfragen sind von der Standard-Regelperiode (15 s) unabhängig. Die Begrenzung ersetzt keinen schnellen netzseitigen Schutz für reale Geräte.
