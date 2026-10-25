@@ -865,7 +865,7 @@ class PVOptionsFlow(config_entries.OptionsFlow):
         if not connections:
             return self.async_show_menu(
                 step_id="quick_read_point_choose",
-                menu_options=["modbus_connection", "quick_connections"],
+                menu_options=["quick_connection_choose"],
             )
         if user_input is not None:
             ident = user_input["register_id"]

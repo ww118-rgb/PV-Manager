@@ -314,8 +314,7 @@
           "register_id": "Select new or existing sensor"
         },
         "menu_options": {
-          "modbus_connection": "Add a Modbus connection first",
-          "quick_connections": "Manage connections"
+          "quick_connection_choose": "Create or edit a connection first"
         }
       },
       "quick_read_point_form": {

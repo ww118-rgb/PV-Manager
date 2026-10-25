@@ -157,7 +157,8 @@ class WizardFlowTests(unittest.TestCase):
             ['quick_connections','quick_read_point_choose','quick_site_form'])
         selection=self.do_step(flow.async_step_quick_read_point_choose)
         self.assertEqual(selection['type'],'menu')
-        self.assertIn('modbus_connection',selection['menu_options'])
+        self.assertEqual(selection['menu_options'],
+                         ['quick_connection_choose'])
         flow.config_entry.options['modbus_connections'] = [
             {'id':'new', 'name':'PV', 'host':'127.0.0.1','port':502,'unit_id':1}]
         selection=self.do_step(flow.async_step_quick_read_point_choose)
