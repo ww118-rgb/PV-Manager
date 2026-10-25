@@ -397,6 +397,52 @@ class RuntimeMonitoringTests(unittest.TestCase):
         self.assertEqual(mgr.values['budget'], 31210)
         self.assertEqual(len(services.calls), 2)
 
+    def test_hysteresis_one_watt_does_not_switch_ampere_step(self):
+        c = self.engine.Consumer
+        devices = [c('hp',1,1,'continuous',5000,20000,old_target=20000,step_w=1),
+                   c('wb1',2,1,'continuous',4140,11040,old_target=5520,step_w=690),
+                   c('wb2',2,2,'continuous',4140,11040,old_target=5520,step_w=690)]
+        old = {'hp':20000, 'wb1':5520, 'wb2':5520}
+        for budget in (31039, 30950, 31039, 31190, 31040):
+            result = self.manager_module.stabilize(budget, devices, old, 0)
+            self.assertEqual(result.targets, old)
+            self.assertEqual(result.shortage_cycles, 0)
+
+    def test_hysteresis_medium_shortage_needs_two_cycles(self):
+        c = self.engine.Consumer
+        devices = [c('wb',1,1,'continuous',4140,11040,old_target=5520,step_w=690)]
+        old = {'wb':5520}
+        first = self.manager_module.stabilize(5220, devices, old, 0)
+        self.assertEqual(first.targets, old)
+        self.assertEqual(first.shortage_cycles, 1)
+        second = self.manager_module.stabilize(5220, devices, old, first.shortage_cycles)
+        self.assertEqual(second.targets['wb'], 4830)
+        self.assertEqual(second.shortage_cycles, 0)
+
+    def test_hysteresis_increase_requires_headroom(self):
+        c = self.engine.Consumer
+        devices = [c('wb',1,1,'continuous',4140,11040,old_target=4830,step_w=690)]
+        old = {'wb':4830}
+        self.assertEqual(self.manager_module.stabilize(5520, devices, old, 0).targets['wb'],4830)
+        self.assertEqual(self.manager_module.stabilize(5620, devices, old, 0).targets['wb'],5520)
+
+    def test_hysteresis_large_shortage_reduces_immediately(self):
+        c = self.engine.Consumer
+        devices = [c('wb',1,1,'continuous',4140,11040,old_target=6900,step_w=690)]
+        self.assertEqual(
+            self.manager_module.stabilize(4800, devices, {'wb':6900}, 0).targets['wb'],
+            4140)
+
+    def test_hysteresis_higher_priority_and_demand_are_not_held(self):
+        c = self.engine.Consumer
+        high = c('high',1,1,'continuous',1000,5000)
+        low = c('low',2,1,'continuous',1000,5000,old_target=4000)
+        plan = self.manager_module.stabilize(3999,[high,low],{'high':0,'low':4000},0)
+        self.assertEqual(plan.targets['low'],0)
+        self.assertGreater(plan.targets['high'],0)
+        stopped = c('low',2,1,'continuous',1000,5000,requested=False,old_target=4000)
+        self.assertEqual(self.manager_module.stabilize(3999,[stopped],{'low':4000},0).targets['low'],0)
+
     def test_invalid_grid_clears_old_budget_while_paused(self):
         class States:
             def get(self, key): return None

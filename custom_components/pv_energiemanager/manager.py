@@ -14,6 +14,7 @@ from homeassistant.helpers import entity_registry as er
 
 from .const import DOMAIN, DEFAULT_INTERVAL, DEFAULT_RESERVE, DEFAULT_SETTLE
 from .engine import Consumer, distribute
+from .hysteresis import stabilize
 from .actuator_guard import actuator_can_receive_command
 
 _LOGGER = logging.getLogger(__name__)
@@ -46,6 +47,7 @@ class PowerManager:
         self.last_stopped: dict[str, float] = {}
         self.request_since: dict[str, float] = {}
         self.group_records: list[dict] = []
+        self._shortage_cycles = 0
         self._listeners: list[Callable] = []
         self._unsubscribe = None
         self._lock = asyncio.Lock()
@@ -101,8 +103,10 @@ class PowerManager:
             if value and not self.enabled:
                 self._pending_zero_sync = {d["id"] for d in self.devices}
                 self._unconfirmed_stop.clear()
+                self._shortage_cycles = 0
             elif not value:
                 self._pending_zero_sync.clear()
+                self._shortage_cycles = 0
             self.enabled = value
             self.status = "Bereit" if value else "Pausiert"
             self.error = ""
@@ -479,8 +483,13 @@ class PowerManager:
                     elif not self._read_demand(d) or desired == 0:
                         self.request_since.pop(key, None)
 
-                execution = distribute(budget, self._build_consumers(now, preview=False))
-                desired = execution.targets
+                live_consumers = self._build_consumers(now, preview=False)
+                execution = distribute(budget, live_consumers)
+                decision = stabilize(
+                    budget, live_consumers, self.last_targets, self._shortage_cycles,
+                )
+                self._shortage_cycles = decision.shortage_cycles
+                desired = decision.targets
                 self.group_records = execution.group_records
                 self.cycle_count += 1
 

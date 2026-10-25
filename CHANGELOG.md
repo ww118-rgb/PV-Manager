@@ -1,3 +1,12 @@
+## 0.2.2b7 — Hysterese für stufenweise geregelte Verbraucher
+
+- 100 W zusätzliche Reserve vor dem Hochregeln in die nächste verfügbare Stufe.
+- Ein Leistungsdefizit bis 150 W führt nicht zu einem unnötigen 690-W-Ladestromsprung.
+- Mittlere Defizite (über 150 W, unter 1000 W) werden über zwei Regelzyklen bestätigt; größere Defizite werden sofort abgebaut.
+- Bei geänderter Nachfrage, Prioritätsbelegung oder Gerätesperre keine Verzögerung durch die Hysterese.
+- Der vorhandene 15-Sekunden-Regelzyklus und die Modbus-Geräteübersetzung bleiben unverändert.
+- Werte sind zunächst konservative Startwerte für den Simulator und werden nach realen Messungen ggf. konfigurierbar gemacht.
+
 ## 0.2.2b6 — Geräte-Stellstufen bereits bei der Leistungsaufteilung berücksichtigen
 
 - Für stufenlos konfigurierte Verbraucher mit tatsächlich diskreten Stellgrößen (z. B. 1 A) liest die Regelung die Home-Assistant-Schrittweite aus dem vorhandenen Sollwertaktor und bildet daraus echte Leistungsstufen.
